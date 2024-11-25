@@ -60,7 +60,7 @@ type OvsMetric struct {
 func getOvsMetric() *OvsMetric {
 	var ovsMetric OvsMetric
 
-	cmd := exec.Command("ovs-appctl", "dpif-netdev/pmd-stats-show")
+	cmd := exec.Command("/usr/bin/ovs-appctl", "dpif-netdev/pmd-stats-show")
 	pmdStatsOutput, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("Error running command: %v\n", err)
@@ -68,7 +68,7 @@ func getOvsMetric() *OvsMetric {
 		parsePMDStats(&ovsMetric, string(pmdStatsOutput))
 	}
 
-	cmd = exec.Command("ovs-appctl", "coverage/show")
+	cmd = exec.Command("/usr/bin/ovs-appctl", "coverage/show")
 	coverageOutput, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("Error running command: %v\n", err)
