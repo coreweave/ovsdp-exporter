@@ -1,4 +1,4 @@
-package ovsdpexporter
+package main
 
 import (
 	"testing"

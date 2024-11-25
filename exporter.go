@@ -1,4 +1,4 @@
-package ovsdpexporter
+package main
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
@@ -58,7 +58,7 @@ func isValidMetric(value float64) bool {
 	return value != -1
 }
 
-func NewOvsDPCollector() *ovsDPCollector {
+func newOvsDPCollector() *ovsDPCollector {
 	return &ovsDPCollector{
 		// PMD stats
 		missWithSuccessUpcallMetric: prometheus.NewDesc("ovsdp_miss_with_success_upcall",
@@ -407,27 +407,21 @@ func (collector *ovsDPCollector) Collect(ch chan<- prometheus.Metric) {
 	if isValidMetric(ovsMetric.OvsDocaNoMark) {
 		ch <- prometheus.MustNewConstMetric(collector.ovsDocaNoMarkMetric, prometheus.CounterValue, float64(ovsMetric.OvsDocaNoMark))
 	}
-
 	if isValidMetric(ovsMetric.OvsDocaInvalidClassifyPort) {
 		ch <- prometheus.MustNewConstMetric(collector.ovsDocaInvalidClassifyPortMetric, prometheus.CounterValue, float64(ovsMetric.OvsDocaInvalidClassifyPort))
 	}
-
 	if isValidMetric(ovsMetric.DocaQueueEmpty) {
 		ch <- prometheus.MustNewConstMetric(collector.docaQueueEmptyMetric, prometheus.CounterValue, float64(ovsMetric.DocaQueueEmpty))
 	}
-
 	if isValidMetric(ovsMetric.DocaQueueNoneProcessed) {
 		ch <- prometheus.MustNewConstMetric(collector.docaQueueNoneProcessedMetric, prometheus.CounterValue, float64(ovsMetric.DocaQueueNoneProcessed))
 	}
-
 	if isValidMetric(ovsMetric.DocaResizeBlock) {
 		ch <- prometheus.MustNewConstMetric(collector.docaResizeBlockMetric, prometheus.CounterValue, float64(ovsMetric.DocaResizeBlock))
 	}
-
 	if isValidMetric(ovsMetric.DocaPipeResize) {
 		ch <- prometheus.MustNewConstMetric(collector.docaPipeResizeMetric, prometheus.CounterValue, float64(ovsMetric.DocaPipeResize))
 	}
-
 	if isValidMetric(ovsMetric.DocaPipeResizeOver10Ms) {
 		ch <- prometheus.MustNewConstMetric(collector.docaPipeResizeOver10MsMetric, prometheus.CounterValue, float64(ovsMetric.DocaPipeResizeOver10Ms))
 	}
