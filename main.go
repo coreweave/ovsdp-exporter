@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 
-	ovsdpexporter "github.com/coreweave/ovsdp-exporter"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -19,7 +18,7 @@ func main() {
 	flag.Parse()
 
 	registry := prometheus.NewRegistry()
-	collector := ovsdpexporter.NewOvsDPCollector()
+	collector := newOvsDPCollector()
 	registry.MustRegister(collector)
 
 	fmt.Printf("Starting server listening: %s\n", *host)
