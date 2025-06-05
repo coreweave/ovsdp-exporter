@@ -88,7 +88,12 @@ netdev_push_header_drops   0.0/sec     0.000/sec        0.0000/sec   total: 31
 netdev_soft_seg_drops   0.0/sec     0.000/sec        0.0000/sec   total: 32
 datapath_drop_tunnel_tso_recirc   0.0/sec     0.000/sec        0.0000/sec   total: 33
 datapath_drop_invalid_bond   0.0/sec     0.000/sec        0.0000/sec   total: 34
-datapath_drop_hw_miss_recover   0.0/sec     0.000/sec        0.0000/sec   total: 35`,
+datapath_drop_hw_miss_recover   0.0/sec     0.000/sec        0.0000/sec   total: 35
+upcall_flow_limit_grew       0.0/sec     0.000/sec        0.0000/sec   total: 36
+upcall_flow_limit_hit        0.0/sec     0.000/sec        0.0000/sec   total: 37
+upcall_flow_limit_kill       0.0/sec     0.000/sec        0.0000/sec   total: 38
+upcall_flow_limit_reduced    0.0/sec     0.000/sec        0.0000/sec   total: 39
+upcall_flow_limit_scaled     0.0/sec     0.000/sec        0.0000/sec   total: 40`,
 			metric: OvsMetric{
 				// Drop reasons
 				UpcallDrops:                      5,
@@ -123,6 +128,12 @@ datapath_drop_hw_miss_recover   0.0/sec     0.000/sec        0.0000/sec   total:
 				DatapathDropTunnelTsoRecirc: 33,
 				DatapathDropInvalidBond:     34,
 				DatapathDropHwMissRecover:   35,
+				// Upcall Flow Limit
+				UpcallFlowLimitGrew:    36,
+				UpcallFlowLimitHit:     37,
+				UpcallFlowLimitKill:    38,
+				UpcallFlowLimitReduced: 39,
+				UpcallFlowLimitScaled:  40,
 			},
 		},
 	}

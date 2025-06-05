@@ -55,6 +55,12 @@ type OvsMetric struct {
 	DocaResizeBlock            float64
 	DocaPipeResize             float64
 	DocaPipeResizeOver10Ms     float64
+	// Upcall Flow Limit
+	UpcallFlowLimitGrew    float64
+	UpcallFlowLimitHit     float64
+	UpcallFlowLimitKill    float64
+	UpcallFlowLimitReduced float64
+	UpcallFlowLimitScaled  float64
 }
 
 func getOvsMetric() *OvsMetric {
@@ -496,6 +502,63 @@ func parseCoverageDropReasons(metrics *OvsMetric, coverageStats string) {
 			metrics.DatapathDropHwMissRecover = v
 		}
 	}
+
+	// Upcall Flow Limit
+	// upcall_flow_limit_grew
+	upcallFlowLimitGrewRegexp := regexp.MustCompile(`(?m)^[ \t]*upcall_flow_limit_grew.*total:\s*(\d+)`)
+	upcallFlowLimitGrewMatch := upcallFlowLimitGrewRegexp.FindStringSubmatch(coverageStats)
+	metrics.UpcallFlowLimitGrew = -1
+	if len(upcallFlowLimitGrewMatch) > 1 {
+		v, err := strconv.ParseFloat(upcallFlowLimitGrewMatch[1], 64)
+		if err == nil {
+			metrics.UpcallFlowLimitGrew = v
+		}
+	}
+
+	// upcall_flow_limit_hit
+	upcallFlowLimitHitRegexp := regexp.MustCompile(`(?m)^[ \t]*upcall_flow_limit_hit.*total:\s*(\d+)`)
+	upcallFlowLimitHitMatch := upcallFlowLimitHitRegexp.FindStringSubmatch(coverageStats)
+	metrics.UpcallFlowLimitHit = -1
+	if len(upcallFlowLimitHitMatch) > 1 {
+		v, err := strconv.ParseFloat(upcallFlowLimitHitMatch[1], 64)
+		if err == nil {
+			metrics.UpcallFlowLimitHit = v
+		}
+	}
+
+	// upcall_flow_limit_kill
+	upcallFlowLimitKillRegexp := regexp.MustCompile(`(?m)^[ \t]*upcall_flow_limit_kill.*total:\s*(\d+)`)
+	upcallFlowLimitKillMatch := upcallFlowLimitKillRegexp.FindStringSubmatch(coverageStats)
+	metrics.UpcallFlowLimitKill = -1
+	if len(upcallFlowLimitKillMatch) > 1 {
+		v, err := strconv.ParseFloat(upcallFlowLimitKillMatch[1], 64)
+		if err == nil {
+			metrics.UpcallFlowLimitKill = v
+		}
+	}
+
+	// upcall_flow_limit_reduced
+	upcallFlowLimitReducedRegexp := regexp.MustCompile(`(?m)^[ \t]*upcall_flow_limit_reduced.*total:\s*(\d+)`)
+	upcallFlowLimitReducedMatch := upcallFlowLimitReducedRegexp.FindStringSubmatch(coverageStats)
+	metrics.UpcallFlowLimitReduced = -1
+	if len(upcallFlowLimitReducedMatch) > 1 {
+		v, err := strconv.ParseFloat(upcallFlowLimitReducedMatch[1], 64)
+		if err == nil {
+			metrics.UpcallFlowLimitReduced = v
+		}
+	}
+
+	// upcall_flow_limit_scaled
+	upcallFlowLimitScaledRegexp := regexp.MustCompile(`(?m)^[ \t]*upcall_flow_limit_scaled.*total:\s*(\d+)`)
+	upcallFlowLimitScaledMatch := upcallFlowLimitScaledRegexp.FindStringSubmatch(coverageStats)
+	metrics.UpcallFlowLimitScaled = -1
+	if len(upcallFlowLimitScaledMatch) > 1 {
+		v, err := strconv.ParseFloat(upcallFlowLimitScaledMatch[1], 64)
+		if err == nil {
+			metrics.UpcallFlowLimitScaled = v
+		}
+	}
+
 }
 
 func parsePMDStats(metrics *OvsMetric, pmdStats string) {

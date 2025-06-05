@@ -52,6 +52,12 @@ type ovsDPCollector struct {
 	docaResizeBlockMetric            *prometheus.Desc
 	docaPipeResizeMetric             *prometheus.Desc
 	docaPipeResizeOver10MsMetric     *prometheus.Desc
+	// Upcall Flow Limit
+	UpcallFlowLimitGrewMetric    *prometheus.Desc
+	UpcallFlowLimitHitMetric     *prometheus.Desc
+	UpcallFlowLimitKillMetric    *prometheus.Desc
+	UpcallFlowLimitReducedMetric *prometheus.Desc
+	UpcallFlowLimitScaledMetric  *prometheus.Desc
 }
 
 func isValidMetric(value float64) bool {
@@ -234,6 +240,27 @@ func newOvsDPCollector() *ovsDPCollector {
 		),
 		docaPipeResizeOver10MsMetric: prometheus.NewDesc("ovsdp_doca_pipe_resize_over_10_ms",
 			"Number of times a pipe resize operation takes longer than 10ms",
+			nil, nil,
+		),
+		// Upcall Flow Limit
+		UpcallFlowLimitGrewMetric: prometheus.NewDesc("ovsdp_upcall_flow_limit_grew",
+			"Number of times the flow_limit increased due to fast processing time",
+			nil, nil,
+		),
+		UpcallFlowLimitHitMetric: prometheus.NewDesc("ovsdp_upcall_flow_limit_hit",
+			"Number of times the flow_limit was hit during upcall processing",
+			nil, nil,
+		),
+		UpcallFlowLimitKillMetric: prometheus.NewDesc("ovsdp_upcall_flow_limit_kill",
+			"Number of times flows were killed due to exceeding flow_limit",
+			nil, nil,
+		),
+		UpcallFlowLimitReducedMetric: prometheus.NewDesc("ovsdp_upcall_flow_limit_reduced",
+			"Number of times the flow_limit was reduced due to high processing time",
+			nil, nil,
+		),
+		UpcallFlowLimitScaledMetric: prometheus.NewDesc("ovsdp_upcall_flow_limit_scaled",
+			"Number of times the flow_limit was scaled down proportionally due to very long processing time",
 			nil, nil,
 		),
 	}
