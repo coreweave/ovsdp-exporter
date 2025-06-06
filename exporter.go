@@ -315,6 +315,12 @@ func (collector *ovsDPCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.docaResizeBlockMetric
 	ch <- collector.docaPipeResizeMetric
 	ch <- collector.docaPipeResizeOver10MsMetric
+	// Upcall Flow Limit
+	ch <- collector.UpcallFlowLimitGrewMetric
+	ch <- collector.UpcallFlowLimitHitMetric
+	ch <- collector.UpcallFlowLimitKillMetric
+	ch <- collector.UpcallFlowLimitReducedMetric
+	ch <- collector.UpcallFlowLimitScaledMetric
 }
 
 func (collector *ovsDPCollector) Collect(ch chan<- prometheus.Metric) {
@@ -451,5 +457,21 @@ func (collector *ovsDPCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 	if isValidMetric(ovsMetric.DocaPipeResizeOver10Ms) {
 		ch <- prometheus.MustNewConstMetric(collector.docaPipeResizeOver10MsMetric, prometheus.CounterValue, float64(ovsMetric.DocaPipeResizeOver10Ms))
+	}
+	// Upcall Flow Limit
+	if isValidMetric(ovsMetric.UpcallFlowLimitGrew) {
+		ch <- prometheus.MustNewConstMetric(collector.UpcallFlowLimitGrewMetric, prometheus.CounterValue, float64(ovsMetric.UpcallFlowLimitGrew))
+	}
+	if isValidMetric(ovsMetric.UpcallFlowLimitHit) {
+		ch <- prometheus.MustNewConstMetric(collector.UpcallFlowLimitHitMetric, prometheus.CounterValue, float64(ovsMetric.UpcallFlowLimitHit))
+	}
+	if isValidMetric(ovsMetric.UpcallFlowLimitKill) {
+		ch <- prometheus.MustNewConstMetric(collector.UpcallFlowLimitKillMetric, prometheus.CounterValue, float64(ovsMetric.UpcallFlowLimitKill))
+	}
+	if isValidMetric(ovsMetric.UpcallFlowLimitReduced) {
+		ch <- prometheus.MustNewConstMetric(collector.UpcallFlowLimitReducedMetric, prometheus.CounterValue, float64(ovsMetric.UpcallFlowLimitReduced))
+	}
+	if isValidMetric(ovsMetric.UpcallFlowLimitScaled) {
+		ch <- prometheus.MustNewConstMetric(collector.UpcallFlowLimitScaledMetric, prometheus.CounterValue, float64(ovsMetric.UpcallFlowLimitScaled))
 	}
 }
