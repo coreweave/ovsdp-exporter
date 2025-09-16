@@ -11,6 +11,17 @@ type ovsDPCollector struct {
 	avgSubtableLookupsMegaflowMetric *prometheus.Desc
 	processingCyclesMetric           *prometheus.Desc
 	idleCyclesMetric                 *prometheus.Desc
+	// Offload stats
+	offloadEnqueuedMetric           *prometheus.Desc
+	offloadInsertedMetric           *prometheus.Desc
+	offloadCtUniDirConnMetric       *prometheus.Desc
+	offloadCtBiDirConnMetric        *prometheus.Desc
+	offloadCumAvgLatencyUsMetric    *prometheus.Desc
+	offloadCumLatencyStddevUsMetric *prometheus.Desc
+	offloadCumLatencyMaxUsMetric    *prometheus.Desc
+	offloadCumLatencyMinUsMetric    *prometheus.Desc
+	offloadExpAvgLatencyUsMetric    *prometheus.Desc
+	offloadExpLatencyStddevUsMetric *prometheus.Desc
 	// Drop reasons
 	upcallDropsMetric                      *prometheus.Desc
 	upcallDropsLockErrorMetric             *prometheus.Desc
@@ -85,6 +96,47 @@ func newOvsDPCollector() *ovsDPCollector {
 		),
 		avgSubtableLookupsMegaflowMetric: prometheus.NewDesc("ovsdp_avg_subtable_lookups_megaflow",
 			"Average of subtable lookups per megaflow hit",
+			nil, nil,
+		),
+		// Offload stats
+		offloadEnqueuedMetric: prometheus.NewDesc("ovsdp_offload_enqueued",
+			"Enqueued offloads total",
+			nil, nil,
+		),
+		offloadInsertedMetric: prometheus.NewDesc("ovsdp_offload_inserted",
+			"Inserted offloads total",
+			nil, nil,
+		),
+		offloadCtUniDirConnMetric: prometheus.NewDesc("ovsdp_offload_ct_unidir_connections",
+			"CT uni-dir connections offloaded",
+			nil, nil,
+		),
+		offloadCtBiDirConnMetric: prometheus.NewDesc("ovsdp_offload_ct_bidir_connections",
+			"CT bi-dir connections offloaded",
+			nil, nil,
+		),
+		offloadCumAvgLatencyUsMetric: prometheus.NewDesc("ovsdp_offload_cum_avg_latency_us",
+			"Cumulative average latency (us)",
+			nil, nil,
+		),
+		offloadCumLatencyStddevUsMetric: prometheus.NewDesc("ovsdp_offload_cum_latency_stddev_us",
+			"Cumulative latency stddev (us)",
+			nil, nil,
+		),
+		offloadCumLatencyMaxUsMetric: prometheus.NewDesc("ovsdp_offload_cum_latency_max_us",
+			"Cumulative latency max (us)",
+			nil, nil,
+		),
+		offloadCumLatencyMinUsMetric: prometheus.NewDesc("ovsdp_offload_cum_latency_min_us",
+			"Cumulative latency min (us)",
+			nil, nil,
+		),
+		offloadExpAvgLatencyUsMetric: prometheus.NewDesc("ovsdp_offload_exp_avg_latency_us",
+			"Exponential average latency (us)",
+			nil, nil,
+		),
+		offloadExpLatencyStddevUsMetric: prometheus.NewDesc("ovsdp_offload_exp_latency_stddev_us",
+			"Exponential latency stddev (us)",
 			nil, nil,
 		),
 		// Drop reasons
@@ -274,6 +326,17 @@ func (collector *ovsDPCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.idleCyclesMetric
 	ch <- collector.avgSubtableLookupsMegaflowMetric
 	ch <- collector.dropActionOfPipelineMetric
+	// Offload stats
+	ch <- collector.offloadEnqueuedMetric
+	ch <- collector.offloadInsertedMetric
+	ch <- collector.offloadCtUniDirConnMetric
+	ch <- collector.offloadCtBiDirConnMetric
+	ch <- collector.offloadCumAvgLatencyUsMetric
+	ch <- collector.offloadCumLatencyStddevUsMetric
+	ch <- collector.offloadCumLatencyMaxUsMetric
+	ch <- collector.offloadCumLatencyMinUsMetric
+	ch <- collector.offloadExpAvgLatencyUsMetric
+	ch <- collector.offloadExpLatencyStddevUsMetric
 	// Drop reasons
 	ch <- collector.upcallDropsMetric
 	ch <- collector.upcallDropsLockErrorMetric
@@ -340,6 +403,37 @@ func (collector *ovsDPCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 	if isValidMetric(ovsMetric.AvgSubtableLookupsMegaflow) {
 		ch <- prometheus.MustNewConstMetric(collector.avgSubtableLookupsMegaflowMetric, prometheus.CounterValue, float64(ovsMetric.AvgSubtableLookupsMegaflow))
+	}
+	// Offload stats
+	if isValidMetric(ovsMetric.OffloadEnqueued) {
+		ch <- prometheus.MustNewConstMetric(collector.offloadEnqueuedMetric, prometheus.CounterValue, float64(ovsMetric.OffloadEnqueued))
+	}
+	if isValidMetric(ovsMetric.OffloadInserted) {
+		ch <- prometheus.MustNewConstMetric(collector.offloadInsertedMetric, prometheus.CounterValue, float64(ovsMetric.OffloadInserted))
+	}
+	if isValidMetric(ovsMetric.OffloadCtUniDirConnections) {
+		ch <- prometheus.MustNewConstMetric(collector.offloadCtUniDirConnMetric, prometheus.CounterValue, float64(ovsMetric.OffloadCtUniDirConnections))
+	}
+	if isValidMetric(ovsMetric.OffloadCtBiDirConnections) {
+		ch <- prometheus.MustNewConstMetric(collector.offloadCtBiDirConnMetric, prometheus.CounterValue, float64(ovsMetric.OffloadCtBiDirConnections))
+	}
+	if isValidMetric(ovsMetric.OffloadCumAvgLatencyUs) {
+		ch <- prometheus.MustNewConstMetric(collector.offloadCumAvgLatencyUsMetric, prometheus.GaugeValue, float64(ovsMetric.OffloadCumAvgLatencyUs))
+	}
+	if isValidMetric(ovsMetric.OffloadCumLatencyStddevUs) {
+		ch <- prometheus.MustNewConstMetric(collector.offloadCumLatencyStddevUsMetric, prometheus.GaugeValue, float64(ovsMetric.OffloadCumLatencyStddevUs))
+	}
+	if isValidMetric(ovsMetric.OffloadCumLatencyMaxUs) {
+		ch <- prometheus.MustNewConstMetric(collector.offloadCumLatencyMaxUsMetric, prometheus.GaugeValue, float64(ovsMetric.OffloadCumLatencyMaxUs))
+	}
+	if isValidMetric(ovsMetric.OffloadCumLatencyMinUs) {
+		ch <- prometheus.MustNewConstMetric(collector.offloadCumLatencyMinUsMetric, prometheus.GaugeValue, float64(ovsMetric.OffloadCumLatencyMinUs))
+	}
+	if isValidMetric(ovsMetric.OffloadExpAvgLatencyUs) {
+		ch <- prometheus.MustNewConstMetric(collector.offloadExpAvgLatencyUsMetric, prometheus.GaugeValue, float64(ovsMetric.OffloadExpAvgLatencyUs))
+	}
+	if isValidMetric(ovsMetric.OffloadExpLatencyStddevUs) {
+		ch <- prometheus.MustNewConstMetric(collector.offloadExpLatencyStddevUsMetric, prometheus.GaugeValue, float64(ovsMetric.OffloadExpLatencyStddevUs))
 	}
 	// Drop reasons
 	if isValidMetric(ovsMetric.UpcallDrops) {

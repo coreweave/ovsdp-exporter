@@ -14,6 +14,17 @@ type OvsMetric struct {
 	AvgSubtableLookupsMegaflow float64
 	ProcessingCycles           float64
 	IdleCycles                 float64
+	// Offload stats
+	OffloadEnqueued            float64
+	OffloadInserted            float64
+	OffloadCtUniDirConnections float64
+	OffloadCtBiDirConnections  float64
+	OffloadCumAvgLatencyUs     float64
+	OffloadCumLatencyStddevUs  float64
+	OffloadCumLatencyMaxUs     float64
+	OffloadCumLatencyMinUs     float64
+	OffloadExpAvgLatencyUs     float64
+	OffloadExpLatencyStddevUs  float64
 	// Drop reasons
 	UpcallDrops                      float64
 	UpcallDropsLockError             float64
@@ -72,6 +83,14 @@ func getOvsMetric() *OvsMetric {
 		fmt.Printf("Error running command: %v\n", err)
 	} else {
 		parsePMDStats(&ovsMetric, string(pmdStatsOutput))
+	}
+
+	cmd = exec.Command("/usr/bin/ovs-appctl", "dpctl/offload-stats-show")
+	offloadStatsOutput, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Error running command: %v\n", err)
+	} else {
+		parseOffloadStats(&ovsMetric, string(offloadStatsOutput))
 	}
 
 	cmd = exec.Command("/usr/bin/ovs-appctl", "coverage/show")
@@ -610,6 +629,82 @@ func parsePMDStats(metrics *OvsMetric, pmdStats string) {
 		v, err := strconv.ParseFloat(avgSubtableLookupsMegaflowMatch[1], 64)
 		if err == nil {
 			metrics.AvgSubtableLookupsMegaflow = v
+		}
+	}
+}
+
+func parseOffloadStats(metrics *OvsMetric, offloadStats string) {
+	// Initialize as invalid
+	metrics.OffloadEnqueued = -1
+	metrics.OffloadInserted = -1
+	metrics.OffloadCtUniDirConnections = -1
+	metrics.OffloadCtBiDirConnections = -1
+	metrics.OffloadCumAvgLatencyUs = -1
+	metrics.OffloadCumLatencyStddevUs = -1
+	metrics.OffloadCumLatencyMaxUs = -1
+	metrics.OffloadCumLatencyMinUs = -1
+	metrics.OffloadExpAvgLatencyUs = -1
+	metrics.OffloadExpLatencyStddevUs = -1
+
+	enqueuedRegexp := regexp.MustCompile(`(?m)^[ \t]*Total[ \t]+Enqueued offloads:[ \t]*([0-9]+)`)
+	insertedRegexp := regexp.MustCompile(`(?m)^[ \t]*Total[ \t]+Inserted offloads:[ \t]*([0-9]+)`)
+	ctUniDirRegexp := regexp.MustCompile(`(?m)^[ \t]*Total[ \t]+CT uni-dir Connections:[ \t]*([0-9]+)`)
+	ctBiDirRegexp := regexp.MustCompile(`(?m)^[ \t]*Total[ \t]+CT bi-dir Connections:[ \t]*([0-9]+)`)
+	cumAvgLatRegexp := regexp.MustCompile(`(?m)^[ \t]*Total[ \t]+Cumulative Average latency \(us\):[ \t]*([0-9]+)`)
+	cumStddevRegexp := regexp.MustCompile(`(?m)^[ \t]*Total[ \t]+Cumulative Latency stddev \(us\):[ \t]*([0-9]+)`)
+	cumMaxRegexp := regexp.MustCompile(`(?m)^[ \t]*Total[ \t]+Cumulative Latency max \(us\):[ \t]*([0-9]+)`)
+	cumMinRegexp := regexp.MustCompile(`(?m)^[ \t]*Total[ \t]+Cumulative Latency min \(us\):[ \t]*([0-9]+)`)
+	expAvgLatRegexp := regexp.MustCompile(`(?m)^[ \t]*Total[ \t]+Exponential Average latency \(us\):[ \t]*([0-9]+)`)
+	expStddevRegexp := regexp.MustCompile(`(?m)^[ \t]*Total[ \t]+Exponential Latency stddev \(us\):[ \t]*([0-9]+)`)
+
+	if m := enqueuedRegexp.FindStringSubmatch(offloadStats); len(m) > 1 {
+		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
+			metrics.OffloadEnqueued = v
+		}
+	}
+	if m := insertedRegexp.FindStringSubmatch(offloadStats); len(m) > 1 {
+		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
+			metrics.OffloadInserted = v
+		}
+	}
+	if m := ctUniDirRegexp.FindStringSubmatch(offloadStats); len(m) > 1 {
+		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
+			metrics.OffloadCtUniDirConnections = v
+		}
+	}
+	if m := ctBiDirRegexp.FindStringSubmatch(offloadStats); len(m) > 1 {
+		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
+			metrics.OffloadCtBiDirConnections = v
+		}
+	}
+	if m := cumAvgLatRegexp.FindStringSubmatch(offloadStats); len(m) > 1 {
+		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
+			metrics.OffloadCumAvgLatencyUs = v
+		}
+	}
+	if m := cumStddevRegexp.FindStringSubmatch(offloadStats); len(m) > 1 {
+		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
+			metrics.OffloadCumLatencyStddevUs = v
+		}
+	}
+	if m := cumMaxRegexp.FindStringSubmatch(offloadStats); len(m) > 1 {
+		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
+			metrics.OffloadCumLatencyMaxUs = v
+		}
+	}
+	if m := cumMinRegexp.FindStringSubmatch(offloadStats); len(m) > 1 {
+		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
+			metrics.OffloadCumLatencyMinUs = v
+		}
+	}
+	if m := expAvgLatRegexp.FindStringSubmatch(offloadStats); len(m) > 1 {
+		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
+			metrics.OffloadExpAvgLatencyUs = v
+		}
+	}
+	if m := expStddevRegexp.FindStringSubmatch(offloadStats); len(m) > 1 {
+		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
+			metrics.OffloadExpLatencyStddevUs = v
 		}
 	}
 }
