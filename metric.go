@@ -25,6 +25,14 @@ type OvsMetric struct {
 	OffloadCumLatencyMinUs     float64
 	OffloadExpAvgLatencyUs     float64
 	OffloadExpLatencyStddevUs  float64
+	// Memory/show stats
+	MemoryHandlers            float64
+	MemoryIdlCellsOpenVSwitch float64
+	MemoryOfconns             float64
+	MemoryPorts               float64
+	MemoryRevalidators        float64
+	MemoryRules               float64
+	MemoryUdpifKeys           float64
 	// Drop reasons
 	UpcallDrops                      float64
 	UpcallDropsLockError             float64
@@ -91,6 +99,14 @@ func getOvsMetric() *OvsMetric {
 		fmt.Printf("Error running command: %v\n", err)
 	} else {
 		parseOffloadStats(&ovsMetric, string(offloadStatsOutput))
+	}
+
+	cmd = exec.Command("/usr/bin/ovs-appctl", "memory/show")
+	memoryShowOutput, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Error running command: %v\n", err)
+	} else {
+		parseMemoryShow(&ovsMetric, string(memoryShowOutput))
 	}
 
 	cmd = exec.Command("/usr/bin/ovs-appctl", "coverage/show")
@@ -705,6 +721,60 @@ func parseOffloadStats(metrics *OvsMetric, offloadStats string) {
 	if m := expStddevRegexp.FindStringSubmatch(offloadStats); len(m) > 1 {
 		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
 			metrics.OffloadExpLatencyStddevUs = v
+		}
+	}
+}
+
+func parseMemoryShow(metrics *OvsMetric, memoryShow string) {
+	metrics.MemoryHandlers = -1
+	metrics.MemoryIdlCellsOpenVSwitch = -1
+	metrics.MemoryOfconns = -1
+	metrics.MemoryPorts = -1
+	metrics.MemoryRevalidators = -1
+	metrics.MemoryRules = -1
+	metrics.MemoryUdpifKeys = -1
+
+	handlersRegexp := regexp.MustCompile(`(?m)handlers:\s*(\d+)`)
+	idlCellsRegexp := regexp.MustCompile(`(?m)idl-cells-Open_vSwitch:\s*(\d+)`)
+	ofconnsRegexp := regexp.MustCompile(`(?m)ofconns:\s*(\d+)`)
+	portsRegexp := regexp.MustCompile(`(?m)ports:\s*(\d+)`)
+	revalidatorsRegexp := regexp.MustCompile(`(?m)revalidators:\s*(\d+)`)
+	rulesRegexp := regexp.MustCompile(`(?m)rules:\s*(\d+)`)
+	udpifKeysRegexp := regexp.MustCompile(`(?m)udpif keys:\s*(\d+)`)
+
+	if m := handlersRegexp.FindStringSubmatch(memoryShow); len(m) > 1 {
+		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
+			metrics.MemoryHandlers = v
+		}
+	}
+	if m := idlCellsRegexp.FindStringSubmatch(memoryShow); len(m) > 1 {
+		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
+			metrics.MemoryIdlCellsOpenVSwitch = v
+		}
+	}
+	if m := ofconnsRegexp.FindStringSubmatch(memoryShow); len(m) > 1 {
+		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
+			metrics.MemoryOfconns = v
+		}
+	}
+	if m := portsRegexp.FindStringSubmatch(memoryShow); len(m) > 1 {
+		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
+			metrics.MemoryPorts = v
+		}
+	}
+	if m := revalidatorsRegexp.FindStringSubmatch(memoryShow); len(m) > 1 {
+		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
+			metrics.MemoryRevalidators = v
+		}
+	}
+	if m := rulesRegexp.FindStringSubmatch(memoryShow); len(m) > 1 {
+		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
+			metrics.MemoryRules = v
+		}
+	}
+	if m := udpifKeysRegexp.FindStringSubmatch(memoryShow); len(m) > 1 {
+		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
+			metrics.MemoryUdpifKeys = v
 		}
 	}
 }

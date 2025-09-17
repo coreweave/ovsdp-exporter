@@ -11,6 +11,14 @@ type ovsDPCollector struct {
 	avgSubtableLookupsMegaflowMetric *prometheus.Desc
 	processingCyclesMetric           *prometheus.Desc
 	idleCyclesMetric                 *prometheus.Desc
+	// Memory/show stats
+	memoryHandlersMetric            *prometheus.Desc
+	memoryIdlCellsOpenVSwitchMetric *prometheus.Desc
+	memoryOfconnsMetric             *prometheus.Desc
+	memoryPortsMetric               *prometheus.Desc
+	memoryRevalidatorsMetric        *prometheus.Desc
+	memoryRulesMetric               *prometheus.Desc
+	memoryUdpifKeysMetric           *prometheus.Desc
 	// Offload stats
 	offloadEnqueuedMetric           *prometheus.Desc
 	offloadInsertedMetric           *prometheus.Desc
@@ -96,6 +104,35 @@ func newOvsDPCollector() *ovsDPCollector {
 		),
 		avgSubtableLookupsMegaflowMetric: prometheus.NewDesc("ovsdp_avg_subtable_lookups_megaflow",
 			"Average of subtable lookups per megaflow hit",
+			nil, nil,
+		),
+		// Memory/show stats
+		memoryHandlersMetric: prometheus.NewDesc("ovsdp_memory_handlers",
+			"Number of OVS handler threads handling OpenFlow connections and upcalls",
+			nil, nil,
+		),
+		memoryIdlCellsOpenVSwitchMetric: prometheus.NewDesc("ovsdp_memory_idl_cells_open_vswitch",
+			"OVSDB cells in use for Open_vSwitch table (transaction/monitor memory)",
+			nil, nil,
+		),
+		memoryOfconnsMetric: prometheus.NewDesc("ovsdp_memory_ofconns",
+			"Active OpenFlow controller connections",
+			nil, nil,
+		),
+		memoryPortsMetric: prometheus.NewDesc("ovsdp_memory_ports",
+			"Configured datapath ports (physical, virtual, and internal)",
+			nil, nil,
+		),
+		memoryRevalidatorsMetric: prometheus.NewDesc("ovsdp_memory_revalidators",
+			"Revalidator threads that periodically revalidate userspace datapath flows",
+			nil, nil,
+		),
+		memoryRulesMetric: prometheus.NewDesc("ovsdp_memory_rules",
+			"Installed OpenFlow rules (software and hardware offloaded)",
+			nil, nil,
+		),
+		memoryUdpifKeysMetric: prometheus.NewDesc("ovsdp_memory_udpif_keys",
+			"Unique userspace datapath (udpif) flow keys handled in software",
 			nil, nil,
 		),
 		// Offload stats
@@ -326,6 +363,14 @@ func (collector *ovsDPCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.idleCyclesMetric
 	ch <- collector.avgSubtableLookupsMegaflowMetric
 	ch <- collector.dropActionOfPipelineMetric
+	// Memory/show stats
+	ch <- collector.memoryHandlersMetric
+	ch <- collector.memoryIdlCellsOpenVSwitchMetric
+	ch <- collector.memoryOfconnsMetric
+	ch <- collector.memoryPortsMetric
+	ch <- collector.memoryRevalidatorsMetric
+	ch <- collector.memoryRulesMetric
+	ch <- collector.memoryUdpifKeysMetric
 	// Offload stats
 	ch <- collector.offloadEnqueuedMetric
 	ch <- collector.offloadInsertedMetric
@@ -403,6 +448,28 @@ func (collector *ovsDPCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 	if isValidMetric(ovsMetric.AvgSubtableLookupsMegaflow) {
 		ch <- prometheus.MustNewConstMetric(collector.avgSubtableLookupsMegaflowMetric, prometheus.CounterValue, float64(ovsMetric.AvgSubtableLookupsMegaflow))
+	}
+	// Memory/show stats
+	if isValidMetric(ovsMetric.MemoryHandlers) {
+		ch <- prometheus.MustNewConstMetric(collector.memoryHandlersMetric, prometheus.GaugeValue, float64(ovsMetric.MemoryHandlers))
+	}
+	if isValidMetric(ovsMetric.MemoryIdlCellsOpenVSwitch) {
+		ch <- prometheus.MustNewConstMetric(collector.memoryIdlCellsOpenVSwitchMetric, prometheus.GaugeValue, float64(ovsMetric.MemoryIdlCellsOpenVSwitch))
+	}
+	if isValidMetric(ovsMetric.MemoryOfconns) {
+		ch <- prometheus.MustNewConstMetric(collector.memoryOfconnsMetric, prometheus.GaugeValue, float64(ovsMetric.MemoryOfconns))
+	}
+	if isValidMetric(ovsMetric.MemoryPorts) {
+		ch <- prometheus.MustNewConstMetric(collector.memoryPortsMetric, prometheus.GaugeValue, float64(ovsMetric.MemoryPorts))
+	}
+	if isValidMetric(ovsMetric.MemoryRevalidators) {
+		ch <- prometheus.MustNewConstMetric(collector.memoryRevalidatorsMetric, prometheus.GaugeValue, float64(ovsMetric.MemoryRevalidators))
+	}
+	if isValidMetric(ovsMetric.MemoryRules) {
+		ch <- prometheus.MustNewConstMetric(collector.memoryRulesMetric, prometheus.GaugeValue, float64(ovsMetric.MemoryRules))
+	}
+	if isValidMetric(ovsMetric.MemoryUdpifKeys) {
+		ch <- prometheus.MustNewConstMetric(collector.memoryUdpifKeysMetric, prometheus.GaugeValue, float64(ovsMetric.MemoryUdpifKeys))
 	}
 	// Offload stats
 	if isValidMetric(ovsMetric.OffloadEnqueued) {

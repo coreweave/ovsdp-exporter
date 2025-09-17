@@ -295,3 +295,24 @@ func Test_parseOffloadStats(t *testing.T) {
 		t.Fatalf("parseOffloadStats mismatch (-got +want):\n%s", diff)
 	}
 }
+
+func Test_parseMemoryShow(t *testing.T) {
+	input := `handlers:11 idl-cells-Open_vSwitch:2742 ofconns:2 ports:47 revalidators:5 rules:20658 udpif keys:29`
+
+	var got OvsMetric
+	parseMemoryShow(&got, input)
+
+	want := OvsMetric{
+		MemoryHandlers:            11,
+		MemoryIdlCellsOpenVSwitch: 2742,
+		MemoryOfconns:             2,
+		MemoryPorts:               47,
+		MemoryRevalidators:        5,
+		MemoryRules:               20658,
+		MemoryUdpifKeys:           29,
+	}
+
+	if diff := cmp.Diff(got, want); diff != "" {
+		t.Fatalf("parseMemoryShow mismatch (-got +want):\n%s", diff)
+	}
+}
