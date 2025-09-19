@@ -261,3 +261,58 @@ avg. packets per output batch: 0.00`,
 		})
 	}
 }
+
+func Test_parseOffloadStats(t *testing.T) {
+	input := `HW Offload stats:
+     Total                 Enqueued offloads:       0
+     Total                 Inserted offloads:    8283
+     Total            CT uni-dir Connections:       0
+     Total             CT bi-dir Connections:       0
+     Total   Cumulative Average latency (us):   14882
+     Total    Cumulative Latency stddev (us):   14689
+     Total       Cumulative Latency max (us):  692044
+     Total       Cumulative Latency min (us):       3
+     Total  Exponential Average latency (us):   14381
+     Total   Exponential Latency stddev (us):   11337`
+
+	var got OvsMetric
+	parseOffloadStats(&got, input)
+
+	want := OvsMetric{
+		OffloadEnqueued:            0,
+		OffloadInserted:            8283,
+		OffloadCtUniDirConnections: 0,
+		OffloadCtBiDirConnections:  0,
+		OffloadCumAvgLatencyUs:     14882,
+		OffloadCumLatencyStddevUs:  14689,
+		OffloadCumLatencyMaxUs:     692044,
+		OffloadCumLatencyMinUs:     3,
+		OffloadExpAvgLatencyUs:     14381,
+		OffloadExpLatencyStddevUs:  11337,
+	}
+
+	if diff := cmp.Diff(got, want); diff != "" {
+		t.Fatalf("parseOffloadStats mismatch (-got +want):\n%s", diff)
+	}
+}
+
+func Test_parseMemoryShow(t *testing.T) {
+	input := `handlers:11 idl-cells-Open_vSwitch:2742 ofconns:2 ports:47 revalidators:5 rules:20658 udpif keys:29`
+
+	var got OvsMetric
+	parseMemoryShow(&got, input)
+
+	want := OvsMetric{
+		MemoryHandlers:            11,
+		MemoryIdlCellsOpenVSwitch: 2742,
+		MemoryOfconns:             2,
+		MemoryPorts:               47,
+		MemoryRevalidators:        5,
+		MemoryRules:               20658,
+		MemoryUdpifKeys:           29,
+	}
+
+	if diff := cmp.Diff(got, want); diff != "" {
+		t.Fatalf("parseMemoryShow mismatch (-got +want):\n%s", diff)
+	}
+}
