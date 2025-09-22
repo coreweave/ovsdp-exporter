@@ -22,7 +22,7 @@ func main() {
 	registry.MustRegister(collector)
 
 	fmt.Printf("Starting server listening: %s\n", *host)
-	http.Handle(*pathname, promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+	http.Handle(*pathname, promhttp.HandlerFor(registry, promhttp.HandlerOpts{ErrorHandling: promhttp.HTTPErrorOnError}))
 	http.ListenAndServe(*host, nil)
 
 }

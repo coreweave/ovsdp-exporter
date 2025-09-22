@@ -82,23 +82,26 @@ type OvsMetric struct {
 	UpcallFlowLimitScaled  float64
 }
 
-func getOvsMetric() *OvsMetric {
-	var ovsMetric OvsMetric
+func getOvsMetric() (*OvsMetric, int) {
+    var ovsMetric OvsMetric
+    successCount := 0
 
 	cmd := exec.Command("/usr/bin/ovs-appctl", "dpif-netdev/pmd-stats-show")
 	pmdStatsOutput, err := cmd.CombinedOutput()
-	if err != nil {
+    if err != nil {
 		fmt.Printf("Error running command: %v\n", err)
 	} else {
 		parsePMDStats(&ovsMetric, string(pmdStatsOutput))
+        successCount++
 	}
 
 	cmd = exec.Command("/usr/bin/ovs-appctl", "dpctl/offload-stats-show")
 	offloadStatsOutput, err := cmd.CombinedOutput()
-	if err != nil {
+    if err != nil {
 		fmt.Printf("Error running command: %v\n", err)
 	} else {
 		parseOffloadStats(&ovsMetric, string(offloadStatsOutput))
+        successCount++
 	}
 
 	cmd = exec.Command("/usr/bin/ovs-appctl", "memory/show")
@@ -111,14 +114,15 @@ func getOvsMetric() *OvsMetric {
 
 	cmd = exec.Command("/usr/bin/ovs-appctl", "coverage/show")
 	coverageOutput, err := cmd.CombinedOutput()
-	if err != nil {
+    if err != nil {
 		fmt.Printf("Error running command: %v\n", err)
 	} else {
 		parseCoverageDropReasons(&ovsMetric, string(coverageOutput))
 		parseCoverageDoca(&ovsMetric, string(coverageOutput))
+        successCount++
 	}
 
-	return &ovsMetric
+    return &ovsMetric, successCount
 }
 
 func parseCoverageDoca(metrics *OvsMetric, coverageStats string) {
