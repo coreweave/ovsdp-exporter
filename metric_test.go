@@ -1,9 +1,13 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func Test_parseCoverageDoca(t *testing.T) {
@@ -259,6 +263,31 @@ avg. packets per output batch: 0.00`,
 				t.Errorf("Structs are different:\n%s", diff)
 			}
 		})
+	}
+}
+
+// Minimal test to assert scrape fails (HTTP 500) when all commands fail
+// by stubbing fetchOvsMetrics to return successCount=0 and then invoking
+// the Prometheus handler.
+func Test_ScrapeFailWhenAllCommandsFail(t *testing.T) {
+	// Why copy to "old" and restore it later?
+	// We replace the global fetch function to simulate total failure for THIS test only.
+	// Saving the original (old) and restoring it prevents leaking the stub into other tests
+	// (order-dependent bugs, parallel test flakiness, and masking real integrations).
+	old := fetchOvsMetrics
+	fetchOvsMetrics = func() (*OvsMetric, int) { return &OvsMetric{}, 0 }
+	t.Cleanup(func() { fetchOvsMetrics = old })
+
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(newOvsDPCollector())
+
+	req := httptest.NewRequest("GET", "/metrics", nil)
+	w := httptest.NewRecorder()
+	h := promhttp.HandlerFor(reg, promhttp.HandlerOpts{ErrorHandling: promhttp.HTTPErrorOnError})
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 when all commands fail, got %d", w.Code)
 	}
 }
 

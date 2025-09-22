@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -78,6 +80,9 @@ type ovsDPCollector struct {
 	UpcallFlowLimitReducedMetric *prometheus.Desc
 	UpcallFlowLimitScaledMetric  *prometheus.Desc
 }
+
+// allow tests to stub metric fetching
+var fetchOvsMetrics = getOvsMetric
 
 func isValidMetric(value float64) bool {
 	return value != -1
@@ -432,7 +437,11 @@ func (collector *ovsDPCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (collector *ovsDPCollector) Collect(ch chan<- prometheus.Metric) {
-	ovsMetric := getOvsMetric()
+	ovsMetric, successCount := fetchOvsMetrics()
+	if successCount == 0 {
+		ch <- prometheus.NewInvalidMetric(prometheus.NewDesc("ovsdp_scrape_error", "Scrape failed: all ovs-appctl commands failed", nil, nil), fmt.Errorf("all ovs-appctl commands failed"))
+		return
+	}
 	// PMD stats
 	if isValidMetric(ovsMetric.MissWithSuccessUpcall) {
 		ch <- prometheus.MustNewConstMetric(collector.missWithSuccessUpcallMetric, prometheus.CounterValue, float64(ovsMetric.MissWithSuccessUpcall))
