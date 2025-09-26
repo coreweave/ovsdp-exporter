@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"os/exec"
+	"strconv"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -644,4 +647,131 @@ func (collector *ovsDPCollector) Collect(ch chan<- prometheus.Metric) {
 	if isValidMetric(ovsMetric.UpcallFlowLimitScaled) {
 		ch <- prometheus.MustNewConstMetric(collector.UpcallFlowLimitScaledMetric, prometheus.CounterValue, float64(ovsMetric.UpcallFlowLimitScaled))
 	}
+}
+
+// ovsVswitchdCollector serves ovs-vswitchd metrics from ovs-appctl metrics/show
+type ovsVswitchdCollector struct{}
+
+func (c *ovsVswitchdCollector) Describe(ch chan<- *prometheus.Desc) {
+}
+
+func (c *ovsVswitchdCollector) Collect(ch chan<- prometheus.Metric) {
+	cmd := exec.Command("/usr/bin/ovs-appctl", "metrics/show")
+	output, err := cmd.Output()
+	if err != nil {
+		desc := prometheus.NewDesc("ovs_metrics_scrape_error", "Error scraping OVS metrics", nil, nil)
+		ch <- prometheus.NewInvalidMetric(desc, fmt.Errorf("ovs-appctl metrics/show failed: %v", err))
+		return
+	}
+
+	lines := strings.Split(string(output), "\n")
+	var currentMetricName string
+	var currentHelp string
+	var currentType string
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		if strings.HasPrefix(line, "# HELP ") {
+			parts := strings.SplitN(line, " ", 4)
+			if len(parts) >= 3 {
+				currentMetricName = parts[2]
+				if len(parts) >= 4 {
+					currentHelp = parts[3]
+				} else {
+					currentHelp = ""
+				}
+			}
+		} else if strings.HasPrefix(line, "# TYPE ") {
+			parts := strings.SplitN(line, " ", 4)
+			if len(parts) >= 3 {
+				currentType = parts[3]
+			}
+		} else if !strings.HasPrefix(line, "#") && currentMetricName != "" {
+			// Parse metric line: metric_name{labels} value
+			if err := c.parseAndEmitMetric(ch, line, currentMetricName, currentHelp, currentType); err != nil {
+				fmt.Printf("Error parsing metric line '%s': %v\n", line, err)
+			}
+		}
+	}
+}
+
+func (c *ovsVswitchdCollector) parseAndEmitMetric(ch chan<- prometheus.Metric, line, metricName, help, metricType string) error {
+	// Parse a line like: metric_name{label1="value1",label2="value2"} 123.45
+
+	// Find the space that separates metric from value
+	lastSpaceIdx := strings.LastIndex(line, " ")
+	if lastSpaceIdx == -1 {
+		return fmt.Errorf("invalid metric line format")
+	}
+
+	metricPart := line[:lastSpaceIdx]
+	valuePart := line[lastSpaceIdx+1:]
+
+	// Parse the value
+	value, err := strconv.ParseFloat(valuePart, 64)
+	if err != nil {
+		return fmt.Errorf("invalid metric value: %v", err)
+	}
+
+	// Parse labels from the metric part
+	var labels []string
+	var labelValues []string
+
+	braceStart := strings.Index(metricPart, "{")
+	if braceStart != -1 {
+		braceEnd := strings.LastIndex(metricPart, "}")
+		if braceEnd == -1 || braceEnd <= braceStart {
+			return fmt.Errorf("malformed labels")
+		}
+
+		labelsPart := metricPart[braceStart+1 : braceEnd]
+		if labelsPart != "" {
+			// Simple label parsing - assumes labels are well-formed
+			labelPairs := strings.Split(labelsPart, ",")
+			for _, pair := range labelPairs {
+				pair = strings.TrimSpace(pair)
+				eqIdx := strings.Index(pair, "=")
+				if eqIdx == -1 {
+					continue
+				}
+
+				key := strings.TrimSpace(pair[:eqIdx])
+				val := strings.TrimSpace(pair[eqIdx+1:])
+
+				if len(val) >= 2 && val[0] == '"' && val[len(val)-1] == '"' {
+					val = val[1 : len(val)-1]
+				}
+
+				labels = append(labels, key)
+				labelValues = append(labelValues, val)
+			}
+		}
+	}
+
+	// Create the metric descriptor
+	desc := prometheus.NewDesc(metricName, help, labels, nil)
+
+	// Determine metric type
+	var valueType prometheus.ValueType
+	switch metricType {
+	case "counter":
+		valueType = prometheus.CounterValue
+	case "gauge":
+		valueType = prometheus.GaugeValue
+	default:
+		valueType = prometheus.GaugeValue // Default to gauge
+	}
+
+	// Create and emit the metric
+	metric, err := prometheus.NewConstMetric(desc, valueType, value, labelValues...)
+	if err != nil {
+		return fmt.Errorf("failed to create metric: %v", err)
+	}
+
+	ch <- metric
+	return nil
 }

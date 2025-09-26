@@ -1,7 +1,14 @@
 ### ovsdp-exporter
 OVS datapath metric exporter. It executes a few `ovs-appctl` commands and exposes selected values as Prometheus metrics.
 
-### Commands executed and exported metrics
+This exporter provides two categories of OVS metrics:
+- **ovsdp_***
+- **ovs_vswitchd_***
+
+## OVS Metrics Categories
+
+### OVSDP Metrics (ovsdp_*)
+Commands executed and parsed to extract specific datapath performance metrics:
 
 #### `ovs-appctl dpif-netdev/pmd-stats-show`
 PMD thread and datapath performance stats.
@@ -90,6 +97,16 @@ High-level memory and thread/connection counts.
 - `ovsdp_memory_revalidators`: Revalidator threads that periodically revalidate userspace datapath flows.
 - `ovsdp_memory_rules`: Installed OpenFlow rules (software and hardware offloaded).
 - `ovsdp_memory_udpif_keys`: Unique userspace datapath (udpif) flow keys handled in software.
+
+### OVS Vswitchd Metrics (ovs_vswitchd_*)
+Comprehensive ovs-vswitchd metrics from `ovs-appctl metrics/show` in native Prometheus format:
+
+- **Bridge metrics**: Number of bridges, flows, and ports per bridge
+- **Connection tracking**: TCP, UDP, ICMP connection counts and limits  
+- **Datapath statistics**: Packets, bytes, hits, misses, offload statistics
+- **Interface metrics**: Admin state, link state, and statistics per interface
+- **Hardware offload**: Rules inserted, connection tracking, and performance metrics
+- **And more!**
 
 ### Running
 

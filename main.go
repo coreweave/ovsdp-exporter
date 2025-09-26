@@ -18,8 +18,12 @@ func main() {
 	flag.Parse()
 
 	registry := prometheus.NewRegistry()
-	collector := newOvsDPCollector()
-	registry.MustRegister(collector)
+
+	// Register both collectors
+	dpCollector := newOvsDPCollector()
+	vswitchdCollector := &ovsVswitchdCollector{}
+	registry.MustRegister(dpCollector)
+	registry.MustRegister(vswitchdCollector)
 
 	fmt.Printf("Starting server listening: %s\n", *host)
 	http.Handle(*pathname, promhttp.HandlerFor(registry, promhttp.HandlerOpts{ErrorHandling: promhttp.HTTPErrorOnError}))
