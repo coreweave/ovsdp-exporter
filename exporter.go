@@ -644,4 +644,40 @@ func (collector *ovsDPCollector) Collect(ch chan<- prometheus.Metric) {
 	if isValidMetric(ovsMetric.UpcallFlowLimitScaled) {
 		ch <- prometheus.MustNewConstMetric(collector.UpcallFlowLimitScaledMetric, prometheus.CounterValue, float64(ovsMetric.UpcallFlowLimitScaled))
 	}
+
+	// Collect parsed metrics from ovs-appctl metrics/show
+	for _, mf := range ovsMetric.ParsedMetrics {
+		for _, m := range mf.Metric {
+			labels := make([]string, 0, len(m.Label))
+			labelValues := make([]string, 0, len(m.Label))
+			for _, label := range m.Label {
+				labels = append(labels, *label.Name)
+				labelValues = append(labelValues, *label.Value)
+			}
+
+			desc := prometheus.NewDesc(*mf.Name, *mf.Help, labels, nil)
+
+			var value float64
+			var valueType prometheus.ValueType
+
+			switch {
+			case m.Counter != nil:
+				value = *m.Counter.Value
+				valueType = prometheus.CounterValue
+			case m.Gauge != nil:
+				value = *m.Gauge.Value
+				valueType = prometheus.GaugeValue
+			case m.Histogram != nil:
+				value = float64(*m.Histogram.SampleCount)
+				valueType = prometheus.CounterValue
+			case m.Summary != nil:
+				value = float64(*m.Summary.SampleCount)
+				valueType = prometheus.CounterValue
+			default:
+				continue // Skip unknown metric types
+			}
+
+			ch <- prometheus.MustNewConstMetric(desc, valueType, value, labelValues...)
+		}
+	}
 }

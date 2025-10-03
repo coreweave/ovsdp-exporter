@@ -2,9 +2,14 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os/exec"
 	"regexp"
 	"strconv"
+	"strings"
+
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 )
 
 type OvsMetric struct {
@@ -80,28 +85,44 @@ type OvsMetric struct {
 	UpcallFlowLimitKill    float64
 	UpcallFlowLimitReduced float64
 	UpcallFlowLimitScaled  float64
+	// Parsed metrics from ovs-appctl metrics/show
+	ParsedMetrics []*dto.MetricFamily
+}
+
+// parseTextFormat parses Prometheus TEXT exposition into []*MetricFamily.
+func parseTextFormat(r io.Reader) ([]*dto.MetricFamily, error) {
+	var parser expfmt.TextParser
+	mfMap, err := parser.TextToMetricFamilies(r)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*dto.MetricFamily, 0, len(mfMap))
+	for _, mf := range mfMap {
+		out = append(out, mf)
+	}
+	return out, nil
 }
 
 func getOvsMetric() (*OvsMetric, int) {
-    var ovsMetric OvsMetric
-    successCount := 0
+	var ovsMetric OvsMetric
+	successCount := 0
 
 	cmd := exec.Command("/usr/bin/ovs-appctl", "dpif-netdev/pmd-stats-show")
 	pmdStatsOutput, err := cmd.CombinedOutput()
-    if err != nil {
+	if err != nil {
 		fmt.Printf("Error running command: %v\n", err)
 	} else {
 		parsePMDStats(&ovsMetric, string(pmdStatsOutput))
-        successCount++
+		successCount++
 	}
 
 	cmd = exec.Command("/usr/bin/ovs-appctl", "dpctl/offload-stats-show")
 	offloadStatsOutput, err := cmd.CombinedOutput()
-    if err != nil {
+	if err != nil {
 		fmt.Printf("Error running command: %v\n", err)
 	} else {
 		parseOffloadStats(&ovsMetric, string(offloadStatsOutput))
-        successCount++
+		successCount++
 	}
 
 	cmd = exec.Command("/usr/bin/ovs-appctl", "memory/show")
@@ -114,15 +135,30 @@ func getOvsMetric() (*OvsMetric, int) {
 
 	cmd = exec.Command("/usr/bin/ovs-appctl", "coverage/show")
 	coverageOutput, err := cmd.CombinedOutput()
-    if err != nil {
+	if err != nil {
 		fmt.Printf("Error running command: %v\n", err)
 	} else {
 		parseCoverageDropReasons(&ovsMetric, string(coverageOutput))
 		parseCoverageDoca(&ovsMetric, string(coverageOutput))
-        successCount++
+		successCount++
 	}
 
-    return &ovsMetric, successCount
+	// Parse metrics from ovs-appctl metrics/show
+	cmd = exec.Command("/usr/bin/ovs-appctl", "metrics/show")
+	metricsOutput, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Error running ovs-appctl metrics/show: %v\n", err)
+	} else {
+		parsedMetrics, err := parseTextFormat(strings.NewReader(string(metricsOutput)))
+		if err != nil {
+			fmt.Printf("Error parsing metrics output: %v\n", err)
+		} else {
+			ovsMetric.ParsedMetrics = parsedMetrics
+			successCount++
+		}
+	}
+
+	return &ovsMetric, successCount
 }
 
 func parseCoverageDoca(metrics *OvsMetric, coverageStats string) {
