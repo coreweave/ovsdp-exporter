@@ -85,6 +85,8 @@ type OvsMetric struct {
 	UpcallFlowLimitKill    float64
 	UpcallFlowLimitReduced float64
 	UpcallFlowLimitScaled  float64
+	// DOCA Pipe Group
+	DocaUniqueItemTemplates float64
 	// Parsed metrics from ovs-appctl metrics/show
 	ParsedMetrics []*dto.MetricFamily
 }
@@ -158,7 +160,34 @@ func getOvsMetric() (*OvsMetric, int) {
 		}
 	}
 
+	// Parse DOCA pipe group unique item templates
+	cmd = exec.Command("/bin/sh", "-c", "sudo ovs-appctl doca-pipe-group/dump | grep -v 'empty_match' | grep -oE 'match.*act' | sort | uniq | wc -l")
+	docaPipeGroupOutput, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Error running doca-pipe-group/dump command: %v\n", err)
+		ovsMetric.DocaUniqueItemTemplates = -1
+	} else {
+		parseDocaUniqueTemplates(&ovsMetric, string(docaPipeGroupOutput))
+	}
+
 	return &ovsMetric, successCount
+}
+
+func parseDocaUniqueTemplates(metrics *OvsMetric, output string) {
+	metrics.DocaUniqueItemTemplates = -1
+
+	trimmed := strings.TrimSpace(output)
+	if trimmed == "" {
+		return
+	}
+
+	count, err := strconv.ParseFloat(trimmed, 64)
+	if err != nil {
+		fmt.Printf("Error parsing unique item templates count: %v\n", err)
+		return
+	}
+
+	metrics.DocaUniqueItemTemplates = count
 }
 
 func parseCoverageDoca(metrics *OvsMetric, coverageStats string) {
