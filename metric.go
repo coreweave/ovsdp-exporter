@@ -161,7 +161,7 @@ func getOvsMetric() (*OvsMetric, int) {
 	}
 
 	// Parse DOCA pipe group unique item templates
-	cmd = exec.Command("/bin/sh", "-c", "sudo ovs-appctl doca-pipe-group/dump | grep -v 'empty_match' | grep -oE 'match.*act' | sort | uniq | wc -l")
+	cmd = exec.Command("/bin/sh", "-c", "ovs-appctl doca-pipe-group/dump | grep -v 'empty_match' | grep -oE 'match.*act' | sort | uniq | wc -l")
 	docaPipeGroupOutput, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("Error running doca-pipe-group/dump command: %v\n", err)
