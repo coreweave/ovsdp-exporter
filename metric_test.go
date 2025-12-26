@@ -2402,3 +2402,257 @@ func Test_parseDocaUniqueTemplates(t *testing.T) {
 		})
 	}
 }
+
+func Test_parseDocaPipegroupEntries(t *testing.T) {
+	tests := []struct {
+		name   string
+		output string
+		metric OvsMetric
+	}{
+		{
+			name: "all pipe groups with entries",
+			output: `esw=0,group_id=0x00000000,priority=2,match=eth,actions=drop
+esw=0,group_id=0x00000000,priority=1,match=ip,actions=normal
+esw=1,group_id=0xf2000000,priority=5,match=tcp,actions=output:1
+esw=1,group_id=0xf2000000,priority=3,match=udp,actions=output:2
+esw=0,group_id=0xfa000000,priority=10,match=icmp,actions=drop
+esw=0,group_id=0xfb000000,priority=1,match=arp,actions=normal
+esw=1,group_id=0xfb000000,priority=2,match=ip,actions=output:3
+esw=0,group_id=0xfd000000,priority=7,match=tcp,actions=ct
+esw=0,group_id=0xff000000,priority=4,match=udp,actions=meter
+esw=1,group_id=0xff000000,priority=6,match=tcp,actions=meter
+esw=0,group_id=0xfc00012d,priority=8,match=tcp,actions=ct
+esw=1,group_id=0xfc000042,priority=9,match=udp,actions=ct
+esw=0,group_id=0xfc10012d,priority=11,match=tcp,actions=nat
+esw=1,group_id=0xfc100099,priority=12,match=udp,actions=nat
+not_esw_line,group_id=0x00000000,priority=1
+esw=0,no_group_id,priority=1`,
+			metric: OvsMetric{
+				DocaPipegroupMainEntries:          2,
+				DocaPipegroupSamplePostmirrorEntries: 2,
+				DocaPipegroupSplitPostprefixEntries:  1,
+				DocaPipegroupPosthashEntries:         2,
+				DocaPipegroupPostctEntries:           1,
+				DocaPipegroupPostmeterEntries:        2,
+				DocaPipegroupCtEntries:               2,
+				DocaPipegroupCtnatEntries:            2,
+			},
+		},
+		{
+			name: "only main pipe group",
+			output: `esw=0,group_id=0x00000000,priority=1,match=ip,actions=normal
+esw=1,group_id=0x00000000,priority=2,match=tcp,actions=drop
+esw=2,group_id=0x00000000,priority=3,match=udp,actions=output:1`,
+			metric: OvsMetric{
+				DocaPipegroupMainEntries:          3,
+				DocaPipegroupSamplePostmirrorEntries: 0,
+				DocaPipegroupSplitPostprefixEntries:  0,
+				DocaPipegroupPosthashEntries:         0,
+				DocaPipegroupPostctEntries:           0,
+				DocaPipegroupPostmeterEntries:        0,
+				DocaPipegroupCtEntries:               0,
+				DocaPipegroupCtnatEntries:            0,
+			},
+		},
+		{
+			name: "only CT and CTNAT entries",
+			output: `esw=0,group_id=0xfc000001,priority=1,match=tcp,actions=ct
+esw=0,group_id=0xfc00012d,priority=2,match=tcp,actions=ct
+esw=0,group_id=0xfc000fff,priority=3,match=udp,actions=ct
+esw=0,group_id=0xfc100001,priority=4,match=tcp,actions=nat
+esw=0,group_id=0xfc10012d,priority=5,match=tcp,actions=nat
+esw=0,group_id=0xfc100fff,priority=6,match=udp,actions=nat`,
+			metric: OvsMetric{
+				DocaPipegroupMainEntries:          0,
+				DocaPipegroupSamplePostmirrorEntries: 0,
+				DocaPipegroupSplitPostprefixEntries:  0,
+				DocaPipegroupPosthashEntries:         0,
+				DocaPipegroupPostctEntries:           0,
+				DocaPipegroupPostmeterEntries:        0,
+				DocaPipegroupCtEntries:               3,
+				DocaPipegroupCtnatEntries:            3,
+			},
+		},
+		{
+			name:   "empty output",
+			output: "",
+			metric: OvsMetric{
+				DocaPipegroupMainEntries:          -1,
+				DocaPipegroupSamplePostmirrorEntries: -1,
+				DocaPipegroupSplitPostprefixEntries:  -1,
+				DocaPipegroupPosthashEntries:         -1,
+				DocaPipegroupPostctEntries:           -1,
+				DocaPipegroupPostmeterEntries:        -1,
+				DocaPipegroupCtEntries:               -1,
+				DocaPipegroupCtnatEntries:            -1,
+			},
+		},
+		{
+			name:   "whitespace only",
+			output: "   \n\n  \n",
+			metric: OvsMetric{
+				DocaPipegroupMainEntries:          -1,
+				DocaPipegroupSamplePostmirrorEntries: -1,
+				DocaPipegroupSplitPostprefixEntries:  -1,
+				DocaPipegroupPosthashEntries:         -1,
+				DocaPipegroupPostctEntries:           -1,
+				DocaPipegroupPostmeterEntries:        -1,
+				DocaPipegroupCtEntries:               -1,
+				DocaPipegroupCtnatEntries:            -1,
+			},
+		},
+		{
+			name: "no esw lines",
+			output: `not_esw=0,group_id=0x00000000,priority=1
+some_other_line
+group_id=0xf2000000,priority=2`,
+			metric: OvsMetric{
+				DocaPipegroupMainEntries:          0,
+				DocaPipegroupSamplePostmirrorEntries: 0,
+				DocaPipegroupSplitPostprefixEntries:  0,
+				DocaPipegroupPosthashEntries:         0,
+				DocaPipegroupPostctEntries:           0,
+				DocaPipegroupPostmeterEntries:        0,
+				DocaPipegroupCtEntries:               0,
+				DocaPipegroupCtnatEntries:            0,
+			},
+		},
+		{
+			name: "esw lines without group_id",
+			output: `esw=0,priority=1,match=ip
+esw=1,priority=2,match=tcp
+esw=2,priority=3,match=udp`,
+			metric: OvsMetric{
+				DocaPipegroupMainEntries:          0,
+				DocaPipegroupSamplePostmirrorEntries: 0,
+				DocaPipegroupSplitPostprefixEntries:  0,
+				DocaPipegroupPosthashEntries:         0,
+				DocaPipegroupPostctEntries:           0,
+				DocaPipegroupPostmeterEntries:        0,
+				DocaPipegroupCtEntries:               0,
+				DocaPipegroupCtnatEntries:            0,
+			},
+		},
+		{
+			name: "mixed case group_id",
+			output: `esw=0,group_id=0x00000000,priority=1,match=ip,actions=normal
+esw=0,group_id=0xF2000000,priority=2,match=tcp,actions=drop
+esw=0,group_id=0xFA000000,priority=3,match=udp,actions=output:1
+esw=0,group_id=0xFB000000,priority=4,match=icmp,actions=normal
+esw=0,group_id=0xFD000000,priority=5,match=arp,actions=ct
+esw=0,group_id=0xFF000000,priority=6,match=tcp,actions=meter
+esw=0,group_id=0xFC00012D,priority=7,match=tcp,actions=ct
+esw=0,group_id=0xFC10012D,priority=8,match=tcp,actions=nat`,
+			metric: OvsMetric{
+				DocaPipegroupMainEntries:          1,
+				DocaPipegroupSamplePostmirrorEntries: 0, // Case sensitive matching
+				DocaPipegroupSplitPostprefixEntries:  0,
+				DocaPipegroupPosthashEntries:         0,
+				DocaPipegroupPostctEntries:           0,
+				DocaPipegroupPostmeterEntries:        0,
+				DocaPipegroupCtEntries:               0,
+				DocaPipegroupCtnatEntries:            0,
+			},
+		},
+		{
+			name: "all infrastructure pipe groups",
+			output: `esw=0,group_id=0xf2000000,priority=1,match=tcp,actions=mirror
+esw=0,group_id=0xfa000000,priority=2,match=tcp,actions=split
+esw=0,group_id=0xfb000000,priority=3,match=tcp,actions=hash
+esw=0,group_id=0xfd000000,priority=4,match=tcp,actions=postct
+esw=0,group_id=0xff000000,priority=5,match=tcp,actions=meter`,
+			metric: OvsMetric{
+				DocaPipegroupMainEntries:          0,
+				DocaPipegroupSamplePostmirrorEntries: 1,
+				DocaPipegroupSplitPostprefixEntries:  1,
+				DocaPipegroupPosthashEntries:         1,
+				DocaPipegroupPostctEntries:           1,
+				DocaPipegroupPostmeterEntries:        1,
+				DocaPipegroupCtEntries:               0,
+				DocaPipegroupCtnatEntries:            0,
+			},
+		},
+		{
+			name: "real command output with detailed entries",
+			output: `esw_mgr_port_id=0, group_id=0xf2000000 (sample-post-mirror)
+esw=0xffff128ff048, group_id=0xf2000000 (sample-post-mirror), priority=1, fwd.type=drop, match.outer.eth.type[2,changeable]=0xffff/0x8809, empty_actions_mask
+esw=0xffff128ff048, group_id=0xf2000000 (sample-post-mirror), priority=3, fwd.type=pipe, empty_match, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw_mgr_port_id=0, group_id=0xf1000000 (sample)
+esw_mgr_port_id=0, group_id=0x00000000
+esw=0xffff128ff048, group_id=0x00000000, priority=1, fwd.type=port, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.l3_type[4,specific]=0x01000000/0x01000000, empty_actions_mask
+esw=0xffff128ff048, group_id=0x00000000, priority=1, fwd.type=drop, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.l3_type[4,specific]=0x01000000/0x01000000, empty_actions_mask
+esw=0xffff128ff048, group_id=0x00000000, priority=1, fwd.type=pipe, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffff0000, match.outer.l3_type[4,specific]=0x01000000/0x01000000, match.outer.ip4.next_proto[1,changeable]=0xff/0xff, match.outer.l4_type_ext[4,specific]=0x01000000/0x01000000, match.outer.tcp.l4_port.src_port[2,changeable]=0xffff/0xffff, match.outer.tcp.l4_port.dst_port[2,changeable]=0xffff/0x8000, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw=0xffff128ff048, group_id=0x00000000, priority=1, fwd.type=pipe, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffff0000, match.outer.l3_type[4,specific]=0x01000000/0x01000000, match.outer.ip4.dst_ip[4,changeable]=0xffffffff/0xffffff80, match.outer.ip4.next_proto[1,changeable]=0xff/0xff, match.outer.l4_type_ext[4,specific]=0x01000000/0x01000000, match.outer.tcp.l4_port.src_port[2,changeable]=0xffff/0xffff, match.outer.tcp.l4_port.dst_port[2,changeable]=0xffff/0x8000, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw=0xffff128ff048, group_id=0x00000000, priority=1, fwd.type=pipe, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffffffff, match.outer.l3_type[4,specific]=0x01000000/0x01000000, match.outer.ip4.dst_ip[4,changeable]=0xffffffff/0xffff0000, match.outer.ip4.next_proto[1,changeable]=0xff/0xff, match.outer.l4_type_ext[4,specific]=0x01000000/0x01000000, match.outer.tcp.l4_port.src_port[2,changeable]=0xffff/0x8000, match.outer.tcp.l4_port.dst_port[2,changeable]=0xffff/0xff00, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw=0xffff128ff048, group_id=0x00000000, priority=1, fwd.type=pipe, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.tun.type[4,specific]=0x01000000/0x01000000, match.tun.vxlan_tun_id[4,changeable]=0xffffffff/0xffffff00, match.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffffffff, match.outer.l3_type[4,specific]=0x01000000/0x01000000, match.outer.ip4.src_ip[4,changeable]=0xffffffff/0xffffffff, match.outer.ip4.dst_ip[4,changeable]=0xffffffff/0xffffffff, match.outer.ip4.dscp_ecn[1,changeable]=0xff/0xff, match.outer.ip4.next_proto[1,changeable]=0xff/0xff, actions.meta.u32[i][4,changeable]=0xffffffff/0xffffffff
+esw=0xffff128ff048, group_id=0x00000000, priority=1, fwd.type=pipe, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffffffff, match.outer.l3_type[4,specific]=0x01000000/0x01000000, match.outer.ip4.dst_ip[4,changeable]=0xffffffff/0xffffffff, match.outer.ip4.next_proto[1,changeable]=0xff/0xff, match.outer.l4_type_ext[4,specific]=0x03000000/0x03000000, match.outer.icmp.type[1,changeable]=0xff/0xfc, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw=0xffff128ff048, group_id=0x00000000, priority=1, fwd.type=port, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffffffff, match.outer.eth.src_mac[6,changeable]=0xffffffffffff/0xffffffffffff, match.outer.l3_type[4,specific]=0x01000000/0x01000000, match.outer.ip4.src_ip[4,changeable]=0xffffffff/0xffffffff, match.outer.ip4.dst_ip[4,changeable]=0xffffffff/0xf8000000, match.outer.ip4.dscp_ecn[1,changeable]=0xff/0xff, match.outer.ip4.next_proto[1,changeable]=0xff/0xff, match.outer.ip4.ttl[1,changeable]=0xff/0xff, match.outer.l4_type_ext[4,specific]=0x02000000/0x02000000, match.outer.udp.l4_port.dst_port[2,changeable]=0xffff/0xffc0, actions.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffffffff, actions.outer.eth.src_mac[6,changeable]=0xffffffffffff/0xffffffffffff, actions.outer.l3_type[4,specific]=0x01000000/0x01000000, actions.outer.ip4.src_ip[4,changeable]=0xffffffff/0xffffffff, actions.outer.ip4.ttl[1,changeable]=0xff/0xff, actions.encap_cfg.is_l2[1,specific]=0x01/0x01, actions.encap_type[4,specific]=0x02000000/0x02000000, actions.encap.outer.eth.type[2,specific]=0x0800/0xffff, actions.encap.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffffffff, actions.encap.outer.eth.src_mac[6,changeable]=0xffffffffffff/0xffffffffffff, actions.encap.outer.l3_type[4,specific]=0x01000000/0x01000000, actions.encap.outer.ip4.src_ip[4,changeable]=0xffffffff/0xffffffff, actions.encap.outer.ip4.dst_ip[4,changeable]=0xffffffff/0xffffffff, actions.encap.outer.ip4.dscp_ecn[1,changeable]=0xff/0xff, actions.encap.outer.ip4.ttl[1,changeable]=0xff/0xff, actions.encap.outer.l4_type_ext[4,specific]=0x02000000/0x00000000, actions.encap.outer.udp.l4_port.src_port[2,changeable]=0xffff/0xffff, actions.encap.outer.udp.l4_port.dst_port[2,changeable]=0xffff/0xffff, actions.encap.tun.type[4,specific]=0x01000000/0x01000000, actions.encap.tun.vxlan_tun_id[4,changeable]=0xffffffff/0xffffffff
+esw=0xffff128ff048, group_id=0x00000000, priority=1, fwd.type=pipe, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffff0000, match.outer.l3_type[4,specific]=0x01000000/0x01000000, match.outer.ip4.next_proto[1,changeable]=0xff/0xff, match.outer.l4_type_ext[4,specific]=0x01000000/0x01000000, match.outer.tcp.l4_port.src_port[2,changeable]=0xffff/0xffff, match.outer.tcp.l4_port.dst_port[2,changeable]=0xffff/0xc000, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw=0xffff128ff048, group_id=0x00000000, priority=1, fwd.type=pipe, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffff0000, match.outer.l3_type[4,specific]=0x01000000/0x01000000, match.outer.ip4.next_proto[1,changeable]=0xff/0xff, match.outer.l4_type_ext[4,specific]=0x01000000/0x01000000, match.outer.tcp.l4_port.src_port[2,changeable]=0xffff/0xffff, match.outer.tcp.l4_port.dst_port[2,changeable]=0xffff/0xe000, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw=0xffff128ff048, group_id=0x00000000, priority=1, fwd.type=pipe, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffff0000, match.outer.l3_type[4,specific]=0x01000000/0x01000000, match.outer.ip4.next_proto[1,changeable]=0xff/0xff, match.outer.l4_type_ext[4,specific]=0x01000000/0x01000000, match.outer.tcp.l4_port.src_port[2,changeable]=0xffff/0xffff, match.outer.tcp.l4_port.dst_port[2,changeable]=0xffff/0xfc00, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw=0xffff128ff048, group_id=0x00000000, priority=1, fwd.type=pipe, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffff0000, match.outer.l3_type[4,specific]=0x01000000/0x01000000, match.outer.ip4.next_proto[1,changeable]=0xff/0xff, match.outer.l4_type_ext[4,specific]=0x01000000/0x01000000, match.outer.tcp.l4_port.src_port[2,changeable]=0xffff/0xffff, match.outer.tcp.l4_port.dst_port[2,changeable]=0xffff/0xf800, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw=0xffff128ff048, group_id=0x00000000, priority=1, fwd.type=pipe, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffff0000, match.outer.l3_type[4,specific]=0x01000000/0x01000000, match.outer.ip4.next_proto[1,changeable]=0xff/0xff, match.outer.l4_type_ext[4,specific]=0x01000000/0x01000000, match.outer.tcp.l4_port.src_port[2,changeable]=0xffff/0xffff, match.outer.tcp.l4_port.dst_port[2,changeable]=0xffff/0xf000, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw=0xffff128ff048, group_id=0x00000000, priority=1, fwd.type=pipe, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffffffff, match.outer.l3_type[4,specific]=0x01000000/0x01000000, match.outer.ip4.dst_ip[4,changeable]=0xffffffff/0xffff0000, match.outer.ip4.next_proto[1,changeable]=0xff/0xff, match.outer.l4_type_ext[4,specific]=0x01000000/0x01000000, match.outer.tcp.l4_port.src_port[2,changeable]=0xffff/0xc000, match.outer.tcp.l4_port.dst_port[2,changeable]=0xffff/0xff00, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw=0xffff128ff048, group_id=0x00000000, priority=1, fwd.type=pipe, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffffffff, match.outer.l3_type[4,specific]=0x01000000/0x01000000, match.outer.ip4.dst_ip[4,changeable]=0xffffffff/0xffff0000, match.outer.ip4.next_proto[1,changeable]=0xff/0xff, match.outer.l4_type_ext[4,specific]=0x01000000/0x01000000, match.outer.tcp.l4_port.src_port[2,changeable]=0xffff/0xe000, match.outer.tcp.l4_port.dst_port[2,changeable]=0xffff/0xff00, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw=0xffff128ff048, group_id=0x00000000, priority=1, fwd.type=port, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffffffff, match.outer.eth.src_mac[6,changeable]=0xffffffffffff/0xffffffffffff, match.outer.l3_type[4,specific]=0x01000000/0x01000000, match.outer.ip4.src_ip[4,changeable]=0xffffffff/0xffffffff, match.outer.ip4.dst_ip[4,changeable]=0xffffffff/0xf8000000, match.outer.ip4.dscp_ecn[1,changeable]=0xff/0xff, match.outer.ip4.next_proto[1,changeable]=0xff/0xff, match.outer.ip4.ttl[1,changeable]=0xff/0xff, match.outer.l4_type_ext[4,specific]=0x02000000/0x02000000, match.outer.udp.l4_port.dst_port[2,changeable]=0xffff/0xffe0, actions.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffffffff, actions.outer.eth.src_mac[6,changeable]=0xffffffffffff/0xffffffffffff, actions.outer.l3_type[4,specific]=0x01000000/0x01000000, actions.outer.ip4.src_ip[4,changeable]=0xffffffff/0xffffffff, actions.outer.ip4.ttl[1,changeable]=0xff/0xff, actions.encap_cfg.is_l2[1,specific]=0x01/0x01, actions.encap_type[4,specific]=0x02000000/0x02000000, actions.encap.outer.eth.type[2,specific]=0x0800/0xffff, actions.encap.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffffffff, actions.encap.outer.eth.src_mac[6,changeable]=0xffffffffffff/0xffffffffffff, actions.encap.outer.l3_type[4,specific]=0x01000000/0x01000000, actions.encap.outer.ip4.src_ip[4,changeable]=0xffffffff/0xffffffff, actions.encap.outer.ip4.dst_ip[4,changeable]=0xffffffff/0xffffffff, actions.encap.outer.ip4.dscp_ecn[1,changeable]=0xff/0xff, actions.encap.outer.ip4.ttl[1,changeable]=0xff/0xff, actions.encap.outer.l4_type_ext[4,specific]=0x02000000/0x00000000, actions.encap.outer.udp.l4_port.src_port[2,changeable]=0xffff/0xffff, actions.encap.outer.udp.l4_port.dst_port[2,changeable]=0xffff/0xffff, actions.encap.tun.type[4,specific]=0x01000000/0x01000000, actions.encap.tun.vxlan_tun_id[4,changeable]=0xffffffff/0xffffffff
+esw=0xffff128ff048, group_id=0x00000000, priority=2, fwd.type=port, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.l3_type[4,specific]=0x02000000/0x02000000, empty_actions_mask
+esw=0xffff128ff048, group_id=0x00000000, priority=2, fwd.type=pipe, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffff0000, match.outer.l3_type[4,specific]=0x02000000/0x02000000, match.outer.ip6.next_proto[1,changeable]=0xff/0xff, match.outer.l4_type_ext[4,specific]=0x04000000/0x04000000, match.outer.icmp.type[1,changeable]=0xff/0xff, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw=0xffff128ff048, group_id=0x00000000, priority=2, fwd.type=pipe, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffff0000, match.outer.l3_type[4,specific]=0x02000000/0x02000000, match.outer.ip6.dst_ip[16,changeable]=0xffffffffffffffffffffffffffffffff/0xffffffffffff00000000000000000000, match.outer.ip6.next_proto[1,changeable]=0xff/0xff, match.outer.l4_type_ext[4,specific]=0x04000000/0x04000000, match.outer.icmp.type[1,changeable]=0xff/0xff, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw=0xffff128ff048, group_id=0x00000000, priority=2, fwd.type=pipe, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffff0000, match.outer.l3_type[4,specific]=0x02000000/0x02000000, match.outer.ip6.next_proto[1,changeable]=0xff/0xff, match.outer.l4_type_ext[4,specific]=0x01000000/0x01000000, match.outer.tcp.l4_port.src_port[2,changeable]=0xffff/0xffff, match.outer.tcp.l4_port.dst_port[2,changeable]=0xffff/0x8000, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw=0xffff128ff048, group_id=0x00000000, priority=2, fwd.type=pipe, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffff0000, match.outer.l3_type[4,specific]=0x02000000/0x02000000, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw=0xffff128ff048, group_id=0x00000000, priority=2, fwd.type=pipe, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffff000000, match.outer.l3_type[4,specific]=0x02000000/0x02000000, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw=0xffff128ff048, group_id=0x00000000, priority=2, fwd.type=pipe, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.outer.eth.type[2,changeable]=0xffff/0xffff, match.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffff0000, match.outer.l3_type[4,specific]=0x02000000/0x02000000, match.outer.ip6.dst_ip[16,changeable]=0xffffffffffffffffffffffffffffffff/0xffffffffffff00000000000000000000, match.outer.ip6.next_proto[1,changeable]=0xff/0xff, match.outer.l4_type_ext[4,specific]=0x01000000/0x01000000, match.outer.tcp.l4_port.src_port[2,changeable]=0xffff/0xffff, match.outer.tcp.l4_port.dst_port[2,changeable]=0xffff/0x8000, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw=0xffff128ff048, group_id=0x00000000, priority=3, fwd.type=port, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.outer.eth.type[2,changeable]=0xffff/0xffff, empty_actions_mask
+esw=0xffff128ff048, group_id=0x00000000, priority=3, fwd.type=pipe, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.outer.eth.type[2,changeable]=0xffff/0xffff, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw=0xffff128ff048, group_id=0x00000000, priority=4, fwd.type=pipe, empty_match, empty_actions_mask
+esw_mgr_port_id=0, group_id=0xff000000 (post-meter)
+esw=0xffff128ff048, group_id=0xff000000 (post-meter), priority=1, fwd.type=port, match.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff, match.parser_meta.meter_color[1,changeable]=0xff/0xff, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw=0xffff128ff048, group_id=0xff000000 (post-meter), priority=2, fwd.type=drop, match.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff, empty_actions_mask
+esw=0xffff128ff048, group_id=0xff000000 (post-meter), priority=4, fwd.type=pipe, empty_match, empty_actions_mask
+esw_mgr_port_id=0, group_id=0xfb000000 (post-hash)
+esw=0xffff128ff048, group_id=0xfb000000 (post-hash), priority=4, fwd.type=pipe, empty_match, empty_actions_mask
+esw_mgr_port_id=0, group_id=0xfa000000 (split-post-prefix)
+esw=0xffff128ff048, group_id=0xfa000000 (split-post-prefix), priority=1, fwd.type=pipe, match.meta.u32[i][4,changeable]=0xffffffff/0xffffffff, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.inner_ip_fragmented[1,changeable]=0xff/0xff, match.tun.type[4,specific]=0x01000000/0x01000000, match.inner.eth.type[2,changeable]=0xffff/0xffff, match.inner.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffffffff, match.inner.l3_type[4,specific]=0x01000000/0x01000000, match.inner.ip4.dst_ip[4,changeable]=0xffffffff/0xfffffff8, match.inner.ip4.dscp_ecn[1,changeable]=0xff/0xff, match.inner.ip4.next_proto[1,changeable]=0xff/0xff, match.inner.l4_type_ext[4,specific]=0x03000000/0x03000000, match.inner.icmp.type[1,changeable]=0xff/0xfc, actions.meta.pkt_meta[4,changeable]=0xffffffff/0x00f0ffff
+esw=0xffff128ff048, group_id=0xfa000000 (split-post-prefix), priority=1, fwd.type=port, match.meta.u32[i][4,changeable]=0xffffffff/0xffffffff, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.inner_ip_fragmented[1,changeable]=0xff/0xff, match.tun.type[4,specific]=0x01000000/0x01000000, match.inner.eth.type[2,changeable]=0xffff/0xffff, match.inner.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffffffff, match.inner.eth.src_mac[6,changeable]=0xffffffffffff/0xffffffffffff, match.inner.l3_type[4,specific]=0x01000000/0x01000000, match.inner.ip4.dst_ip[4,changeable]=0xffffffff/0xffffffff, match.inner.ip4.next_proto[1,changeable]=0xff/0xff, match.inner.ip4.ttl[1,changeable]=0xff/0xff, match.inner.l4_type_ext[4,specific]=0x02000000/0x02000000, match.inner.udp.l4_port.dst_port[2,changeable]=0xffff/0x8000, actions.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffffffff, actions.outer.eth.src_mac[6,changeable]=0xffffffffffff/0xffffffffffff, actions.outer.l3_type[4,specific]=0x01000000/0x01000000, actions.outer.ip4.dst_ip[4,changeable]=0xffffffff/0xffffffff, actions.outer.ip4.ttl[1,changeable]=0xff/0xff, actions.decap_type[4,specific]=0x02000000/0x02000000, actions.decap_cfg.is_l2[1,specific]=0x01/0x01
+esw=0xffff128ff048, group_id=0xfa000000 (split-post-prefix), priority=1, fwd.type=port, match.meta.u32[i][4,changeable]=0xffffffff/0xffffffff, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.inner_ip_fragmented[1,changeable]=0xff/0xff, match.tun.type[4,specific]=0x01000000/0x01000000, match.inner.eth.type[2,changeable]=0xffff/0xffff, match.inner.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffffffff, match.inner.eth.src_mac[6,changeable]=0xffffffffffff/0xffffffffffff, match.inner.l3_type[4,specific]=0x01000000/0x01000000, match.inner.ip4.dst_ip[4,changeable]=0xffffffff/0xffffffff, match.inner.ip4.next_proto[1,changeable]=0xff/0xff, match.inner.ip4.ttl[1,changeable]=0xff/0xff, match.inner.l4_type_ext[4,specific]=0x02000000/0x02000000, match.inner.udp.l4_port.dst_port[2,changeable]=0xffff/0xc000, actions.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffffffff, actions.outer.eth.src_mac[6,changeable]=0xffffffffffff/0xffffffffffff, actions.outer.l3_type[4,specific]=0x01000000/0x01000000, actions.outer.ip4.dst_ip[4,changeable]=0xffffffff/0xffffffff, actions.outer.ip4.ttl[1,changeable]=0xff/0xff, actions.decap_type[4,specific]=0x02000000/0x02000000, actions.decap_cfg.is_l2[1,specific]=0x01/0x01
+esw=0xffff128ff048, group_id=0xfa000000 (split-post-prefix), priority=1, fwd.type=port, match.meta.u32[i][4,changeable]=0xffffffff/0xffffffff, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.inner_ip_fragmented[1,changeable]=0xff/0xff, match.tun.type[4,specific]=0x01000000/0x01000000, match.inner.eth.type[2,changeable]=0xffff/0xffff, match.inner.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffffffff, match.inner.eth.src_mac[6,changeable]=0xffffffffffff/0xffffffffffff, match.inner.l3_type[4,specific]=0x01000000/0x01000000, match.inner.ip4.dst_ip[4,changeable]=0xffffffff/0xffffffff, match.inner.ip4.next_proto[1,changeable]=0xff/0xff, match.inner.ip4.ttl[1,changeable]=0xff/0xff, match.inner.l4_type_ext[4,specific]=0x02000000/0x02000000, match.inner.udp.l4_port.dst_port[2,changeable]=0xffff/0xe000, actions.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffffffff, actions.outer.eth.src_mac[6,changeable]=0xffffffffffff/0xffffffffffff, actions.outer.l3_type[4,specific]=0x01000000/0x01000000, actions.outer.ip4.dst_ip[4,changeable]=0xffffffff/0xffffffff, actions.outer.ip4.ttl[1,changeable]=0xff/0xff, actions.decap_type[4,specific]=0x02000000/0x02000000, actions.decap_cfg.is_l2[1,specific]=0x01/0x01
+esw=0xffff128ff048, group_id=0xfa000000 (split-post-prefix), priority=1, fwd.type=port, match.meta.u32[i][4,changeable]=0xffffffff/0xffffffff, match.parser_meta.port_meta[4,changeable]=0xffffffff/0xffffffff, match.parser_meta.inner_ip_fragmented[1,changeable]=0xff/0xff, match.tun.type[4,specific]=0x01000000/0x01000000, match.inner.eth.type[2,changeable]=0xffff/0xffff, match.inner.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffffffff, match.inner.eth.src_mac[6,changeable]=0xffffffffffff/0xffffffffffff, match.inner.l3_type[4,specific]=0x01000000/0x01000000, match.inner.ip4.dst_ip[4,changeable]=0xffffffff/0xffffffff, match.inner.ip4.next_proto[1,changeable]=0xff/0xff, match.inner.ip4.ttl[1,changeable]=0xff/0xff, match.inner.l4_type_ext[4,specific]=0x02000000/0x02000000, match.inner.udp.l4_port.dst_port[2,changeable]=0xffff/0xffe0, actions.outer.eth.dst_mac[6,changeable]=0xffffffffffff/0xffffffffffff, actions.outer.eth.src_mac[6,changeable]=0xffffffffffff/0xffffffffffff, actions.outer.l3_type[4,specific]=0x01000000/0x01000000, actions.outer.ip4.dst_ip[4,changeable]=0xffffffff/0xffffffff, actions.outer.ip4.ttl[1,changeable]=0xff/0xff, actions.decap_type[4,specific]=0x02000000/0x02000000, actions.decap_cfg.is_l2[1,specific]=0x01/0x01
+esw=0xffff128ff048, group_id=0xfa000000 (split-post-prefix), priority=4, fwd.type=pipe, empty_match, empty_actions_mask
+esw_mgr_port_id=0, group_id=0xfc00012d (ct-301)
+esw=0xffff128ff048, group_id=0xfc00012d (ct-301), priority=1, fwd.type=pipe, match.meta.u32[i][4,changeable]=0xffffffff/0xffff0020, empty_actions_mask
+esw=0xffff128ff048, group_id=0xfc00012d (ct-301), priority=2, fwd.type=pipe, match.outer.l3_type[4,specific]=0x01000000/0x01000000, match.outer.l4_type_ext[4,specific]=0x02000000/0x02000000, actions.meta.u32[i][4,changeable]=0xffffffff/0xffff0000
+esw=0xffff128ff048, group_id=0xfc00012d (ct-301), priority=2, fwd.type=pipe, match.outer.l3_type[4,specific]=0x01000000/0x01000000, match.outer.l4_type_ext[4,specific]=0x01000000/0x01000000, match.outer.tcp.flags[1,changeable]=0xff/0x07, actions.meta.u32[i][4,changeable]=0xffffffff/0xffff0000
+esw=0xffff128ff048, group_id=0xfc00012d (ct-301), priority=4, fwd.type=pipe, empty_match, empty_actions_mask
+esw_mgr_port_id=0, group_id=0xfd000000 (post-ct)
+esw=0xffff128ff048, group_id=0xfd000000 (post-ct), priority=4, fwd.type=pipe, empty_match, empty_actions_mask
+esw_mgr_port_id=0, group_id=0xfc10012d (ct-nat-301)
+esw=0xffff128ff048, group_id=0xfc10012d (ct-nat-301), priority=1, fwd.type=pipe, match.meta.u32[i][4,changeable]=0xffffffff/0xffff00e0, empty_actions_mask
+esw=0xffff128ff048, group_id=0xfc10012d (ct-nat-301), priority=2, fwd.type=pipe, match.outer.l3_type[4,specific]=0x01000000/0x01000000, match.outer.l4_type_ext[4,specific]=0x02000000/0x02000000, actions.meta.u32[i][4,changeable]=0xffffffff/0xffff0000
+esw=0xffff128ff048, group_id=0xfc10012d (ct-nat-301), priority=2, fwd.type=pipe, match.outer.l3_type[4,specific]=0x01000000/0x01000000, match.outer.l4_type_ext[4,specific]=0x01000000/0x01000000, match.outer.tcp.flags[1,changeable]=0xff/0x07, actions.meta.u32[i][4,changeable]=0xffffffff/0xffff0000
+esw=0xffff128ff048, group_id=0xfc10012d (ct-nat-301), priority=4, fwd.type=pipe, empty_match, empty_actions_mask
+esw_mgr_port_id=0, group_id=0xf3000000 (miss)`,
+			metric: OvsMetric{
+				DocaPipegroupMainEntries:          26,
+				DocaPipegroupSamplePostmirrorEntries: 2,
+				DocaPipegroupSplitPostprefixEntries:  6,
+				DocaPipegroupPosthashEntries:         1,
+				DocaPipegroupPostctEntries:           1,
+				DocaPipegroupPostmeterEntries:        3,
+				DocaPipegroupCtEntries:               4,
+				DocaPipegroupCtnatEntries:            4,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var ovsMetric OvsMetric
+			parseDocaPipegroupEntries(&ovsMetric, tt.output)
+
+			diff := cmp.Diff(ovsMetric, tt.metric)
+			if diff != "" {
+				t.Errorf("Structs are different:\n%s", diff)
+			}
+		})
+	}
+}
