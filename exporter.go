@@ -81,6 +81,8 @@ type ovsDPCollector struct {
 	UpcallFlowLimitScaledMetric  *prometheus.Desc
 	// DOCA Pipe Group
 	docaUniqueItemTemplatesMetric *prometheus.Desc
+	// OVS flow counters
+	ovsFlowCounters *prometheus.Desc
 }
 
 // allow tests to stub metric fetching
@@ -364,6 +366,10 @@ func newOvsDPCollector() *ovsDPCollector {
 			"Number of unique item templates created from doca-pipe-group/dump",
 			nil, nil,
 		),
+		ovsFlowCounters: prometheus.NewDesc("dpu_ovs_flow_packets_matched_total",
+			"Number of packets matched by OVS flow rules with note tags",
+			[]string{"tag"}, nil,
+		),
 	}
 }
 
@@ -443,6 +449,8 @@ func (collector *ovsDPCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.UpcallFlowLimitScaledMetric
 	// DOCA Pipe Group
 	ch <- collector.docaUniqueItemTemplatesMetric
+	// OVS flow counters
+	ch <- collector.ovsFlowCounters
 }
 
 func (collector *ovsDPCollector) Collect(ch chan<- prometheus.Metric) {
@@ -692,5 +700,10 @@ func (collector *ovsDPCollector) Collect(ch chan<- prometheus.Metric) {
 
 			ch <- prometheus.MustNewConstMetric(desc, valueType, value, labelValues...)
 		}
+	}
+
+	// Collect flow rules with note actions
+	for _, flow := range ovsMetric.FlowRulesWithNotes {
+		ch <- prometheus.MustNewConstMetric(collector.ovsFlowCounters, prometheus.CounterValue, flow.NPackets, flow.DecodedTag)
 	}
 }

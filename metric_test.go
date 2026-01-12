@@ -56,7 +56,6 @@ doca_pipe_resize_over_10_ms  0.0/sec     0.000/sec        0.0000/sec   total: 30
 }
 
 func Test_parseCoverageDropReasons(t *testing.T) {
-
 	tests := []struct {
 		name   string
 		output string
@@ -159,7 +158,6 @@ upcall_flow_limit_scaled     0.0/sec     0.000/sec        0.0000/sec   total: 40
 }
 
 func Test_metricParsePMDStats(t *testing.T) {
-
 	tests := []struct {
 		name   string
 		output string
@@ -2065,7 +2063,6 @@ ovs_vswitchd_scrape_duration_seconds 0.34
 }
 
 func Test_parseDocaUniqueTemplates_WithRealFile(t *testing.T) {
-
 	testInput := `match.meta.u32[i][4,changeable]=0xffffffff/0x2700ffff, match.parser_meta.outer_ip_fragmented[1,changeable]=0xff/0xff, match.parser_meta.outer_l3_type[4,specific]=0x01000000/0x01000000, match.outer.eth.type[2,changeable]=0xffff/0xffff, empty_act
 match.outer.eth.type[2,changeable]=0xffff/0x8809, empty_act
 match.outer.eth.type[2,changeable]=0xffff/0x88cc, empty_act
@@ -2393,6 +2390,125 @@ func Test_parseDocaUniqueTemplates(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var ovsMetric OvsMetric
 			parseDocaUniqueTemplates(&ovsMetric, tt.output)
+
+			diff := cmp.Diff(ovsMetric, tt.metric)
+			// If there's a difference, `cmp.Diff` will return a string representation of the diff
+			if diff != "" {
+				t.Errorf("Structs are different:\n%s", diff)
+			}
+		})
+	}
+}
+
+func Test_decodeHexNote(t *testing.T) {
+	tests := []struct {
+		name     string
+		hexNote  string
+		expected string
+		wantErr  bool
+	}{
+		{
+			name:     "example from user",
+			hexNote:  "70.65.72.6d.69.74.2d.38.30.2d.34.34.33.2d.74.63.70.2f.70.65.72.6d.69.74.2d.32.32.00.00.00",
+			expected: "permit-80-443-tcp/permit-22",
+			wantErr:  false,
+		},
+		{
+			name:     "simple string",
+			hexNote:  "68.65.6c.6c.6f",
+			expected: "hello",
+			wantErr:  false,
+		},
+		{
+			name:     "string with null bytes",
+			hexNote:  "74.65.73.74.00.00",
+			expected: "test",
+			wantErr:  false,
+		},
+		{
+			name:     "empty string",
+			hexNote:  "",
+			expected: "",
+			wantErr:  false,
+		},
+		{
+			name:     "only null bytes",
+			hexNote:  "00.00.00",
+			expected: "",
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := decodeHexNote(tt.hexNote)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("decodeHexNote() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if result != tt.expected {
+				t.Errorf("decodeHexNote() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParseFlowRules(t *testing.T) {
+	tests := []struct {
+		name   string
+		output string
+		metric OvsMetric
+	}{
+		{
+			name:   "acl example",
+			output: `cookie=0x10, duration=4.772s, table=5, n_packets=1234, n_bytes=0, priority=2000,tcp,tp_dst=22 actions=output:pf0hpf,note:70.65.72.6d.69.74.2d.38.30.2d.34.34.33.2d.74.63.70.2f.70.65.72.6d.69.74.2d.32.32.00.00.00`,
+			metric: OvsMetric{
+				FlowRulesWithNotes: []FlowRule{
+					{
+						NPackets:   1234,
+						DecodedTag: "permit-80-443-tcp/permit-22",
+					},
+				},
+			},
+		},
+		{
+			name: "multiple flows with notes",
+			output: `cookie=0x10, duration=1.0s, table=1, n_packets=100, n_bytes=0, actions=note:68.65.6c.6c.6f
+cookie=0x10, duration=2.0s, table=1, n_packets=200, n_bytes=0, actions=note:74.65.73.74.00.00
+cookie=0x10, duration=3.0s, table=1, n_packets=300, n_bytes=0, actions=drop`,
+			metric: OvsMetric{
+				FlowRulesWithNotes: []FlowRule{
+					{
+						NPackets:   100,
+						DecodedTag: "hello",
+					},
+					{
+						NPackets:   200,
+						DecodedTag: "test",
+					},
+				},
+			},
+		},
+		{
+			name:   "no flows with notes",
+			output: `cookie=0x10, duration=4.773s, table=5, n_packets=2, n_bytes=148, priority=1000,tcp,tcp_flags=+syn-ack actions=drop`,
+			metric: OvsMetric{
+				FlowRulesWithNotes: []FlowRule{},
+			},
+		},
+		{
+			name:   "empty output",
+			output: "",
+			metric: OvsMetric{
+				FlowRulesWithNotes: []FlowRule{},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var ovsMetric OvsMetric
+			parseFlowRules(&ovsMetric, tt.output)
 
 			diff := cmp.Diff(ovsMetric, tt.metric)
 			// If there's a difference, `cmp.Diff` will return a string representation of the diff

@@ -89,6 +89,14 @@ type OvsMetric struct {
 	DocaUniqueItemTemplates float64
 	// Parsed metrics from ovs-appctl metrics/show
 	ParsedMetrics []*dto.MetricFamily
+	// Flow rules with note actions
+	FlowRulesWithNotes []FlowRule
+}
+
+// FlowRule represents a parsed flow rule with note action
+type FlowRule struct {
+	NPackets   float64
+	DecodedTag string
 }
 
 // parseTextFormat parses Prometheus TEXT exposition into []*MetricFamily.
@@ -168,6 +176,15 @@ func getOvsMetric() (*OvsMetric, int) {
 		ovsMetric.DocaUniqueItemTemplates = -1
 	} else {
 		parseDocaUniqueTemplates(&ovsMetric, string(docaPipeGroupOutput))
+	}
+
+	// Parse flow rules with note actions
+	cmd = exec.Command("/usr/bin/ovs-ofctl", "dump-flows", "br-sfc", "cookie=0x10/-1")
+	flowOutput, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Error running ovs-ofctl dump-flows command: %v\n", err)
+	} else {
+		parseFlowRules(&ovsMetric, string(flowOutput))
 	}
 
 	return &ovsMetric, successCount
@@ -845,5 +862,67 @@ func parseMemoryShow(metrics *OvsMetric, memoryShow string) {
 		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
 			metrics.MemoryUdpifKeys = v
 		}
+	}
+}
+
+// decodeHexNote decodes a hex-encoded note string (format: XX.XX.XX...)
+// Returns the decoded string with null bytes removed
+func decodeHexNote(hexNote string) (string, error) {
+	// Remove dots from the hex string
+	hexStr := strings.ReplaceAll(hexNote, ".", "")
+
+	// Convert hex string to bytes
+	decoded := make([]byte, 0, len(hexStr)/2)
+	for i := 0; i < len(hexStr); i += 2 {
+		if i+2 > len(hexStr) {
+			break
+		}
+		b, err := strconv.ParseUint(hexStr[i:i+2], 16, 8)
+		if err != nil {
+			return "", err
+		}
+		// Skip null bytes
+		if b != 0 {
+			decoded = append(decoded, byte(b))
+		}
+	}
+
+	return string(decoded), nil
+}
+
+// parseFlowRules parses ovs-ofctl dump-flows output to extract flows with note actions
+func parseFlowRules(metrics *OvsMetric, flowOutput string) {
+	metrics.FlowRulesWithNotes = []FlowRule{}
+
+	// Regex to match flow lines with n_packets and note actions
+	// Example: n_packets=1234, ... actions=...,note:70.65.72...
+	flowRegexp := regexp.MustCompile(`n_packets=(\d+).*note:([0-9a-fA-F.]+)`)
+
+	lines := strings.Split(flowOutput, "\n")
+	for _, line := range lines {
+		matches := flowRegexp.FindStringSubmatch(line)
+		if len(matches) < 3 {
+			continue
+		}
+
+		// Extract n_packets
+		nPackets, err := strconv.ParseFloat(matches[1], 64)
+		if err != nil {
+			fmt.Printf("Error parsing n_packets: %v\n", err)
+			continue
+		}
+
+		// Decode the hex note
+		decodedTag, err := decodeHexNote(matches[2])
+		if err != nil {
+			fmt.Printf("Error decoding hex note: %v\n", err)
+			continue
+		}
+
+		// Add to flow rules
+		metrics.FlowRulesWithNotes = append(metrics.FlowRulesWithNotes, FlowRule{
+			NPackets:   nPackets,
+			DecodedTag: decodedTag,
+		})
 	}
 }
