@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -870,6 +871,10 @@ func decodeHexNote(hexNote string) (string, error) {
 	bs, err := hex.DecodeString(hexStr)
 	if err != nil {
 		return "", err
+	}
+	// Notes in OVS are null padded to 8+n*6 bytes. We don't want those nulls.
+	if nullIdx := bytes.IndexByte(bs, 0); nullIdx >= 0 {
+		bs = bs[:nullIdx]
 	}
 	return string(bs), nil
 }
