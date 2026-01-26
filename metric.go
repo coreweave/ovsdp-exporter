@@ -87,6 +87,15 @@ type OvsMetric struct {
 	UpcallFlowLimitScaled  float64
 	// DOCA Pipe Group
 	DocaUniqueItemTemplates float64
+	// DOCA Pipe Group Entries
+	DocaPipegroupMainEntries          float64
+	DocaPipegroupSamplePostmirrorEntries float64
+	DocaPipegroupSplitPostprefixEntries  float64
+	DocaPipegroupPosthashEntries         float64
+	DocaPipegroupPostctEntries           float64
+	DocaPipegroupPostmeterEntries        float64
+	DocaPipegroupCtEntries               float64
+	DocaPipegroupCtnatEntries            float64
 	// Parsed metrics from ovs-appctl metrics/show
 	ParsedMetrics []*dto.MetricFamily
 }
@@ -170,6 +179,23 @@ func getOvsMetric() (*OvsMetric, int) {
 		parseDocaUniqueTemplates(&ovsMetric, string(docaPipeGroupOutput))
 	}
 
+	// Parse DOCA pipe group entries
+	cmd = exec.Command("/usr/bin/ovs-appctl", "doca-pipe-group/dump")
+	docaPipeGroupDumpOutput, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Error running doca-pipe-group/dump command: %v\n", err)
+		ovsMetric.DocaPipegroupMainEntries = -1
+		ovsMetric.DocaPipegroupSamplePostmirrorEntries = -1
+		ovsMetric.DocaPipegroupSplitPostprefixEntries = -1
+		ovsMetric.DocaPipegroupPosthashEntries = -1
+		ovsMetric.DocaPipegroupPostctEntries = -1
+		ovsMetric.DocaPipegroupPostmeterEntries = -1
+		ovsMetric.DocaPipegroupCtEntries = -1
+		ovsMetric.DocaPipegroupCtnatEntries = -1
+	} else {
+		parseDocaPipegroupEntries(&ovsMetric, string(docaPipeGroupDumpOutput))
+	}
+
 	return &ovsMetric, successCount
 }
 
@@ -188,6 +214,75 @@ func parseDocaUniqueTemplates(metrics *OvsMetric, output string) {
 	}
 
 	metrics.DocaUniqueItemTemplates = count
+}
+
+func parseDocaPipegroupEntries(metrics *OvsMetric, output string) {
+	// Initialize all metrics to -1
+	metrics.DocaPipegroupMainEntries = -1
+	metrics.DocaPipegroupSamplePostmirrorEntries = -1
+	metrics.DocaPipegroupSplitPostprefixEntries = -1
+	metrics.DocaPipegroupPosthashEntries = -1
+	metrics.DocaPipegroupPostctEntries = -1
+	metrics.DocaPipegroupPostmeterEntries = -1
+	metrics.DocaPipegroupCtEntries = -1
+	metrics.DocaPipegroupCtnatEntries = -1
+
+	if strings.TrimSpace(output) == "" {
+		return
+	}
+
+	lines := strings.Split(output, "\n")
+
+	// Counters for each pipe group
+	var mainCount, samplePostmirrorCount, splitPostprefixCount, posthashCount float64
+	var postctCount, postmeterCount, ctCount, ctnatCount float64
+
+	for _, line := range lines {
+		// Skip empty lines or lines that don't start with esw=
+		if !strings.HasPrefix(line, "esw=") {
+			continue
+		}
+
+		// Extract group_id from the line
+		groupIDMatch := regexp.MustCompile(`group_id=(0x[0-9a-fA-F]+)`).FindStringSubmatch(line)
+		if len(groupIDMatch) < 2 {
+			continue
+		}
+
+		groupID := groupIDMatch[1]
+
+		// Count entries based on group_id
+		switch {
+		case groupID == "0x00000000":
+			mainCount++
+		case groupID == "0xf2000000":
+			samplePostmirrorCount++
+		case groupID == "0xfa000000":
+			splitPostprefixCount++
+		case groupID == "0xfb000000":
+			posthashCount++
+		case groupID == "0xfd000000":
+			postctCount++
+		case groupID == "0xff000000":
+			postmeterCount++
+		case strings.HasPrefix(groupID, "0xfc1"):
+			// CTNAT entries (0xfc10xxxx)
+			ctnatCount++
+		case strings.HasPrefix(groupID, "0xfc0"):
+			// CT entries (0xfc0xxxxx but not 0xfc1xxxxx)
+			ctCount++
+		}
+	}
+
+	// Set the metrics
+	metrics.DocaPipegroupMainEntries = mainCount
+	metrics.DocaPipegroupSamplePostmirrorEntries = samplePostmirrorCount
+	metrics.DocaPipegroupSplitPostprefixEntries = splitPostprefixCount
+	metrics.DocaPipegroupPosthashEntries = posthashCount
+	metrics.DocaPipegroupPostctEntries = postctCount
+	metrics.DocaPipegroupPostmeterEntries = postmeterCount
+	metrics.DocaPipegroupCtEntries = ctCount
+	metrics.DocaPipegroupCtnatEntries = ctnatCount
 }
 
 func parseCoverageDoca(metrics *OvsMetric, coverageStats string) {

@@ -81,6 +81,15 @@ type ovsDPCollector struct {
 	UpcallFlowLimitScaledMetric  *prometheus.Desc
 	// DOCA Pipe Group
 	docaUniqueItemTemplatesMetric *prometheus.Desc
+	// DOCA Pipe Group Entries
+	docaPipegroupMainEntriesMetric          *prometheus.Desc
+	docaPipegroupSamplePostmirrorEntriesMetric *prometheus.Desc
+	docaPipegroupSplitPostprefixEntriesMetric  *prometheus.Desc
+	docaPipegroupPosthashEntriesMetric         *prometheus.Desc
+	docaPipegroupPostctEntriesMetric           *prometheus.Desc
+	docaPipegroupPostmeterEntriesMetric        *prometheus.Desc
+	docaPipegroupCtEntriesMetric               *prometheus.Desc
+	docaPipegroupCtnatEntriesMetric            *prometheus.Desc
 }
 
 // allow tests to stub metric fetching
@@ -362,6 +371,39 @@ func newOvsDPCollector() *ovsDPCollector {
 		// DOCA Pipe Group
 		docaUniqueItemTemplatesMetric: prometheus.NewDesc("ovsdp_doca_unique_item_templates",
 			"Number of unique item templates created from doca-pipe-group/dump",
+			nil, nil,
+		),
+		// DOCA Pipe Group Entries
+		docaPipegroupMainEntriesMetric: prometheus.NewDesc("ovsdp_doca_pipegroup_main_entries",
+			"Number of entries in the main pipe group (group_id=0x00000000)",
+			nil, nil,
+		),
+		docaPipegroupSamplePostmirrorEntriesMetric: prometheus.NewDesc("ovsdp_doca_pipegroup_sample_postmirror_entries",
+			"Number of entries in the sample-post-mirror pipe group (group_id=0xf2000000)",
+			nil, nil,
+		),
+		docaPipegroupSplitPostprefixEntriesMetric: prometheus.NewDesc("ovsdp_doca_pipegroup_split_postprefix_entries",
+			"Number of entries in the split-post-prefix pipe group (group_id=0xfa000000)",
+			nil, nil,
+		),
+		docaPipegroupPosthashEntriesMetric: prometheus.NewDesc("ovsdp_doca_pipegroup_posthash_entries",
+			"Number of entries in the post-hash pipe group (group_id=0xfb000000)",
+			nil, nil,
+		),
+		docaPipegroupPostctEntriesMetric: prometheus.NewDesc("ovsdp_doca_pipegroup_postct_entries",
+			"Number of entries in the post-ct pipe group (group_id=0xfd000000)",
+			nil, nil,
+		),
+		docaPipegroupPostmeterEntriesMetric: prometheus.NewDesc("ovsdp_doca_pipegroup_postmeter_entries",
+			"Number of entries in the post-meter pipe group (group_id=0xff000000)",
+			nil, nil,
+		),
+		docaPipegroupCtEntriesMetric: prometheus.NewDesc("ovsdp_doca_pipegroup_ct_entries",
+			"Number of entries in all CT pipe groups (group_id=0xfc0xxxxx)",
+			nil, nil,
+		),
+		docaPipegroupCtnatEntriesMetric: prometheus.NewDesc("ovsdp_doca_pipegroup_ctnat_entries",
+			"Number of entries in all CT-NAT pipe groups (group_id=0xfc1xxxxx)",
 			nil, nil,
 		),
 	}
@@ -656,6 +698,31 @@ func (collector *ovsDPCollector) Collect(ch chan<- prometheus.Metric) {
 	// DOCA Pipe Group
 	if isValidMetric(ovsMetric.DocaUniqueItemTemplates) {
 		ch <- prometheus.MustNewConstMetric(collector.docaUniqueItemTemplatesMetric, prometheus.GaugeValue, float64(ovsMetric.DocaUniqueItemTemplates))
+	}
+	// DOCA Pipe Group Entries
+	if isValidMetric(ovsMetric.DocaPipegroupMainEntries) {
+		ch <- prometheus.MustNewConstMetric(collector.docaPipegroupMainEntriesMetric, prometheus.GaugeValue, float64(ovsMetric.DocaPipegroupMainEntries))
+	}
+	if isValidMetric(ovsMetric.DocaPipegroupSamplePostmirrorEntries) {
+		ch <- prometheus.MustNewConstMetric(collector.docaPipegroupSamplePostmirrorEntriesMetric, prometheus.GaugeValue, float64(ovsMetric.DocaPipegroupSamplePostmirrorEntries))
+	}
+	if isValidMetric(ovsMetric.DocaPipegroupSplitPostprefixEntries) {
+		ch <- prometheus.MustNewConstMetric(collector.docaPipegroupSplitPostprefixEntriesMetric, prometheus.GaugeValue, float64(ovsMetric.DocaPipegroupSplitPostprefixEntries))
+	}
+	if isValidMetric(ovsMetric.DocaPipegroupPosthashEntries) {
+		ch <- prometheus.MustNewConstMetric(collector.docaPipegroupPosthashEntriesMetric, prometheus.GaugeValue, float64(ovsMetric.DocaPipegroupPosthashEntries))
+	}
+	if isValidMetric(ovsMetric.DocaPipegroupPostctEntries) {
+		ch <- prometheus.MustNewConstMetric(collector.docaPipegroupPostctEntriesMetric, prometheus.GaugeValue, float64(ovsMetric.DocaPipegroupPostctEntries))
+	}
+	if isValidMetric(ovsMetric.DocaPipegroupPostmeterEntries) {
+		ch <- prometheus.MustNewConstMetric(collector.docaPipegroupPostmeterEntriesMetric, prometheus.GaugeValue, float64(ovsMetric.DocaPipegroupPostmeterEntries))
+	}
+	if isValidMetric(ovsMetric.DocaPipegroupCtEntries) {
+		ch <- prometheus.MustNewConstMetric(collector.docaPipegroupCtEntriesMetric, prometheus.GaugeValue, float64(ovsMetric.DocaPipegroupCtEntries))
+	}
+	if isValidMetric(ovsMetric.DocaPipegroupCtnatEntries) {
+		ch <- prometheus.MustNewConstMetric(collector.docaPipegroupCtnatEntriesMetric, prometheus.GaugeValue, float64(ovsMetric.DocaPipegroupCtnatEntries))
 	}
 
 	// Collect parsed metrics from ovs-appctl metrics/show
