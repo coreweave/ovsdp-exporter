@@ -89,62 +89,109 @@ DOCA pipe group unique item templates.
 Prometheus-formatted metrics directly from OVS. All metrics returned by this command are exposed with their original names and labels, supporting both gauge and counter types. This includes a wide range of `ovs_vswitchd_*` prefixed metrics covering:
 
 - **Bridge metrics**: Bridge configuration and flow counts
-  - `ovs_vswitchd_bridge`: Bridge presence indicator (labeled by name and type)
-  - `ovs_vswitchd_bridge_n_bridges`: Number of bridges
-  - `ovs_vswitchd_bridge_n_flows`: Number of flows per bridge
-  - `ovs_vswitchd_bridge_n_ports`: Number of ports per bridge
+  - `ovs_vswitchd_bridge`: A metric with a constant value '1' labeled by bridge name and type present on the instance
+  - `ovs_vswitchd_bridge_n_bridges`: Number of bridges present in the instance
+  - `ovs_vswitchd_bridge_n_flows`: Number of flows present on the bridge
+  - `ovs_vswitchd_bridge_n_ports`: Number of ports present on the bridge
 
 - **Connection tracking**: Conntrack statistics by connection type
-  - `ovs_vswitchd_conntrack_connection_limit`: Maximum connections allowed
-  - `ovs_vswitchd_conntrack_n_connections`: Total tracked connections
-  - `ovs_vswitchd_conntrack_n_dccp`, `ovs_vswitchd_conntrack_n_icmp`, `ovs_vswitchd_conntrack_n_icmp6`, `ovs_vswitchd_conntrack_n_igmp`, `ovs_vswitchd_conntrack_n_other`, `ovs_vswitchd_conntrack_n_sctp`, `ovs_vswitchd_conntrack_n_tcp`, `ovs_vswitchd_conntrack_n_udp`, `ovs_vswitchd_conntrack_n_udplite`: Per-protocol connection counts
-  - `ovs_vswitchd_conntrack_tcp_seq_chk`: TCP sequence checking mode
+  - `ovs_vswitchd_conntrack_connection_limit`: Maximum number of connections allowed
+  - `ovs_vswitchd_conntrack_n_connections`: Number of tracked connections
+  - `ovs_vswitchd_conntrack_n_dccp`: Number of tracked DCCP connections
+  - `ovs_vswitchd_conntrack_n_icmp`: Number of tracked ICMP connections
+  - `ovs_vswitchd_conntrack_n_icmp6`: Number of tracked ICMPv6 connections
+  - `ovs_vswitchd_conntrack_n_igmp`: Number of tracked IGMP connections
+  - `ovs_vswitchd_conntrack_n_other`: Number of tracked connections of undefined type
+  - `ovs_vswitchd_conntrack_n_sctp`: Number of tracked SCTP connections
+  - `ovs_vswitchd_conntrack_n_tcp`: Number of tracked TCP connections
+  - `ovs_vswitchd_conntrack_n_udp`: Number of tracked UDP connections
+  - `ovs_vswitchd_conntrack_n_udplite`: Number of tracked UDPLite connections
+  - `ovs_vswitchd_conntrack_tcp_seq_chk`: The TCP sequence checking mode: disabled(0) or enabled(1)
 
 - **Datapath statistics**: Flow table and packet processing metrics
-  - `ovs_vswitchd_datapath_bytes_total`, `ovs_vswitchd_datapath_packets_total`: Total bytes/packets processed
-  - `ovs_vswitchd_datapath_offloaded_bytes_total`, `ovs_vswitchd_datapath_offloaded_packets_total`: Hardware-offloaded traffic
-  - `ovs_vswitchd_datapath_tx_bytes_total`, `ovs_vswitchd_datapath_tx_packets_total`: Transmitted traffic
-  - `ovs_vswitchd_datapath_tx_offloaded_bytes_total`, `ovs_vswitchd_datapath_tx_offloaded_packets_total`: Hardware-offloaded TX traffic
-  - `ovs_vswitchd_datapath_hit_total`, `ovs_vswitchd_datapath_missed_total`, `ovs_vswitchd_datapath_lost_total`: Flow table lookup results
-  - `ovs_vswitchd_datapath_cache_hit_total`, `ovs_vswitchd_datapath_mask_hit_total`: Megaflow mask cache statistics
-  - `ovs_vswitchd_datapath_n_flows`, `ovs_vswitchd_datapath_n_masks`: Flow and mask counts
-  - `ovs_vswitchd_datapath_n_handlers`, `ovs_vswitchd_datapath_n_revalidators`: Thread counts
-  - `ovs_vswitchd_datapath_hw_offload_n_ct_bidir`, `ovs_vswitchd_datapath_hw_offload_n_ct_unidir`: Hardware-offloaded connection counts
-  - `ovs_vswitchd_datapath_hw_offload_n_enqueued`, `ovs_vswitchd_datapath_hw_offload_n_inserted`: Hardware offload queue statistics
+  - `ovs_vswitchd_datapath_bytes_total`: Number of bytes processed in total on this datapath
+  - `ovs_vswitchd_datapath_packets_total`: Number of packets processed in total on this datapath
+  - `ovs_vswitchd_datapath_offloaded_bytes_total`: Number of bytes processed in hardware on this datapath
+  - `ovs_vswitchd_datapath_offloaded_packets_total`: Number of packets processed in hardware on this datapath
+  - `ovs_vswitchd_datapath_tx_bytes_total`: Number of bytes emitted in total from this datapath
+  - `ovs_vswitchd_datapath_tx_packets_total`: Number of packets emitted in total from this datapath
+  - `ovs_vswitchd_datapath_tx_offloaded_bytes_total`: Total number of bytes emitted from this datapath and fully processed in hardware
+  - `ovs_vswitchd_datapath_tx_offloaded_packets_total`: Total number of packets emitted from this datapath and fully processed in hardware
+  - `ovs_vswitchd_datapath_hit_total`: Number of flow table matches
+  - `ovs_vswitchd_datapath_missed_total`: Number of flow table misses
+  - `ovs_vswitchd_datapath_lost_total`: Number of misses not sent to userspace
+  - `ovs_vswitchd_datapath_cache_hit_total`: Number of mega flow mask cache hits for flow table matches
+  - `ovs_vswitchd_datapath_mask_hit_total`: Number of mega flow masks visited for flow table matches
+  - `ovs_vswitchd_datapath_n_flows`: Number of flows present
+  - `ovs_vswitchd_datapath_n_masks`: Number of mega flow masks
+  - `ovs_vswitchd_datapath_n_handlers`: Number of upcall handler threads
+  - `ovs_vswitchd_datapath_n_revalidators`: Number of revalidator threads
+  - `ovs_vswitchd_datapath_hw_offload_n_ct_bidir`: Number of bi-directional connections offloaded in hardware
+  - `ovs_vswitchd_datapath_hw_offload_n_ct_unidir`: Number of uni-directional connections offloaded in hardware
+  - `ovs_vswitchd_datapath_hw_offload_n_enqueued`: Number of hardware offload requests waiting to be processed
+  - `ovs_vswitchd_datapath_hw_offload_n_inserted`: Number of hardware offload rules currently inserted
 
 - **Interface statistics**: Per-interface metrics with detailed RX/TX counters
-  - `ovs_vswitchd_interface_admin_state`, `ovs_vswitchd_interface_link_state`: Interface state
-  - `ovs_vswitchd_interface_link_speed`, `ovs_vswitchd_interface_duplex`, `ovs_vswitchd_interface_mtu`: Link characteristics
-  - `ovs_vswitchd_interface_link_resets_total`: Link reset count
-  - `ovs_vswitchd_interface_rx_bytes_total`, `ovs_vswitchd_interface_rx_packets_total`: Received traffic
-  - `ovs_vswitchd_interface_tx_bytes_total`, `ovs_vswitchd_interface_tx_packets_total`: Transmitted traffic
-  - `ovs_vswitchd_interface_rx_dropped_total`, `ovs_vswitchd_interface_tx_dropped_total`: Dropped packets
-  - `ovs_vswitchd_interface_rx_errors_total`, `ovs_vswitchd_interface_tx_errors_total`: Error counts
-  - `ovs_vswitchd_interface_rx_crc_errors_total`, `ovs_vswitchd_interface_rx_frame_errors_total`, `ovs_vswitchd_interface_rx_fifo_errors_total`, `ovs_vswitchd_interface_rx_length_errors_total`, `ovs_vswitchd_interface_rx_missed_errors_total`, `ovs_vswitchd_interface_rx_over_errors_total`: Detailed RX error types
-  - `ovs_vswitchd_interface_collisions_total`, `ovs_vswitchd_interface_multicast_total`: Additional interface statistics
-  - `ovs_vswitchd_interface_ingress_policy_bit_rate`, `ovs_vswitchd_interface_ingress_policy_bit_burst`, `ovs_vswitchd_interface_ingress_policy_pkt_rate`, `ovs_vswitchd_interface_ingress_policy_pkt_burst`: Ingress policing parameters
-  - `ovs_vswitchd_interface_info`, `ovs_vswitchd_interface_ifindex`, `ovs_vswitchd_interface_of_port`: Interface metadata
+  - `ovs_vswitchd_interface_admin_state`: The administrative state of the interface: down(0) or up(1)
+  - `ovs_vswitchd_interface_link_state`: The state of the interface link: down(0) or up(1)
+  - `ovs_vswitchd_interface_link_speed`: The current speed of the interface link in Mbps
+  - `ovs_vswitchd_interface_duplex`: The duplex mode of the interface: half(0) or full(1)
+  - `ovs_vswitchd_interface_mtu`: The MTU of the interface
+  - `ovs_vswitchd_interface_link_resets_total`: The number of time the interface link changed
+  - `ovs_vswitchd_interface_rx_bytes_total`: The number of bytes received
+  - `ovs_vswitchd_interface_rx_packets_total`: The number of packets received
+  - `ovs_vswitchd_interface_tx_bytes_total`: The number of bytes transmitted
+  - `ovs_vswitchd_interface_tx_packets_total`: The number of packets transmitted
+  - `ovs_vswitchd_interface_rx_dropped_total`: Number of packets received but not processed, e.g. due to lack of resources or unsupported protocol. For hardware interface this counter should not include packets dropped by the device due to buffer exhaustion which are counted separately in rx_missed_errors
+  - `ovs_vswitchd_interface_tx_dropped_total`: The number of packets dropped on their way to transmission, e.g. due to lack of resources
+  - `ovs_vswitchd_interface_rx_errors_total`: Total number of bad packets received on this interface. This counter includes all rx_length_errors, rx_crc_errors, rx_frame_errors and other errors not otherwise counted
+  - `ovs_vswitchd_interface_tx_errors_total`: Total number of transmit issues on this interface
+  - `ovs_vswitchd_interface_rx_crc_errors_total`: The number of packets with CRC errors received by the interface
+  - `ovs_vswitchd_interface_rx_frame_errors_total`: The number of received packets with frame alignment errors on the interface
+  - `ovs_vswitchd_interface_rx_fifo_errors_total`: Receiver FIFO error counter. This statistics was used interchangeably with rx_over_errors but is not recommended for use in drivers for high speed interfaces. This statistics is used on software devices, e.g. to count software packets queue overflow or sequencing errors
+  - `ovs_vswitchd_interface_rx_length_errors_total`: The number of packets dropped due to invalid length
+  - `ovs_vswitchd_interface_rx_missed_errors_total`: The number of packets missed by the host due to lack of buffer space. This usually indicates that the host interface is slower than the hardware interface. This statistics corresponds to hardware events and is not used on software devices
+  - `ovs_vswitchd_interface_rx_over_errors_total`: Receiver FIFO overflow event counter. This statistics was used interchangeably with rx_fifo_errors. This statistics corresponds to hardware events and is not commonly used on software devices
+  - `ovs_vswitchd_interface_collisions_total`: The number of collisions during packet transmission
+  - `ovs_vswitchd_interface_multicast_total`: The number of multicast packets received by the interface
+  - `ovs_vswitchd_interface_ingress_policy_bit_rate`: Maximum receive rate in kbps on the interface. Disabled if set to 0
+  - `ovs_vswitchd_interface_ingress_policy_bit_burst`: Maximum receive burst size in kb
+  - `ovs_vswitchd_interface_ingress_policy_pkt_rate`: Maximum receive rate in pps on the interface. Disabled if set to 0
+  - `ovs_vswitchd_interface_ingress_policy_pkt_burst`: Maximum receive burst size in number of packets
+  - `ovs_vswitchd_interface_info`: A metric with a constant value '1' labeled with the driver name, version and firmware version of the interface
+  - `ovs_vswitchd_interface_ifindex`: The ifindex of the interface
+  - `ovs_vswitchd_interface_of_port`: The OpenFlow port ID associated with the interface
 
 - **Poll thread (PMD) metrics**: Performance metrics for datapath poll threads
-  - `ovs_vswitchd_poll_threads_packets_total`, `ovs_vswitchd_poll_threads_recirculations_total`: Packet processing counts
-  - `ovs_vswitchd_poll_threads_hit_total`, `ovs_vswitchd_poll_threads_missed_total`, `ovs_vswitchd_poll_threads_lost_total`: Flow lookup results per thread
-  - `ovs_vswitchd_poll_threads_busy_cycles`, `ovs_vswitchd_poll_threads_idle_cycles`: CPU cycle utilization
-  - `ovs_vswitchd_poll_threads_cycles_per_packet`, `ovs_vswitchd_poll_threads_busy_cycles_per_packet`: Processing efficiency
-  - `ovs_vswitchd_poll_threads_passes_per_packet`, `ovs_vswitchd_poll_threads_recirc_per_packet`: Pipeline complexity metrics
-  - `ovs_vswitchd_poll_threads_packets_per_batch`: Batching efficiency
-  - `ovs_vswitchd_poll_threads_lookups_per_hit`: Megaflow lookup efficiency
+  - `ovs_vswitchd_poll_threads_n`: Number of polling threads
+  - `ovs_vswitchd_poll_threads_packets_total`: Number of received packets
+  - `ovs_vswitchd_poll_threads_recirculations_total`: Number of executed packet recirculations
+  - `ovs_vswitchd_poll_threads_hit_total`: Number of flow table matches
+  - `ovs_vswitchd_poll_threads_missed_total`: Number of flow table misses and upcall succeeded
+  - `ovs_vswitchd_poll_threads_lost_total`: Number of flow table misses and upcall failed
+  - `ovs_vswitchd_poll_threads_busy_cycles`: Percent of useful CPU cycles
+  - `ovs_vswitchd_poll_threads_idle_cycles`: Percent of idle CPU cycles
+  - `ovs_vswitchd_poll_threads_cycles_per_packet`: Average number of CPU cycles per packet
+  - `ovs_vswitchd_poll_threads_busy_cycles_per_packet`: Average number of active CPU cycles per packet
+  - `ovs_vswitchd_poll_threads_passes_per_packet`: Average number of datapath passes per packet
+  - `ovs_vswitchd_poll_threads_recirc_per_packet`: Average number of recirculations per packet
+  - `ovs_vswitchd_poll_threads_packets_per_batch`: Average number of packets per batch
+  - `ovs_vswitchd_poll_threads_lookups_per_hit`: Average number of lookups per flow table hit
 
 - **Memory metrics**: OVS process memory usage
-  - `ovs_vswitchd_memory_in_use`, `ovs_vswitchd_memory_rss`, `ovs_vswitchd_memory_vmsize`, `ovs_vswitchd_memory_data`: Memory consumption statistics
-  - `ovs_vswitchd_memory_frag_factor`: Memory fragmentation factor
+  - `ovs_vswitchd_memory_in_use`: The amount of memory currently allocated in bytes
+  - `ovs_vswitchd_memory_rss`: The process resident set size in bytes
+  - `ovs_vswitchd_memory_vmsize`: The process virtual memory size in bytes
+  - `ovs_vswitchd_memory_data`: The process sum of data and stack size in bytes
+  - `ovs_vswitchd_memory_frag_factor`: The fragmentation factor of the process dynamic memory, defined as (rss/in_use)
 
 - **Thread counts**:
-  - `ovs_vswitchd_handler_n_threads`: Total upcall handler threads
-  - `ovs_vswitchd_revalidator_n_threads`: Total revalidator threads
+  - `ovs_vswitchd_handler_n_threads`: Number of upcall handler threads in total
+  - `ovs_vswitchd_revalidator_n_threads`: Number of revalidator threads in total
 
 - **Scrape metadata**:
-  - `ovs_vswitchd_scrape_duration_seconds`: Time taken to collect metrics
-  - `ovs_vswitchd_metrics_histogram_read_errors_total`: Errors reading histogram metrics
+  - `ovs_vswitchd_scrape_duration_seconds`: Time elapsed to process this request in seconds
+  - `ovs_vswitchd_metrics_histogram_read_errors_total`: Number of histogram reads that could not resolve without inconsistencies
 
 #### `ovs-appctl memory/show`
 High-level memory and thread/connection counts.
