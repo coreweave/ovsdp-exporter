@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os/exec"
@@ -89,6 +91,14 @@ type OvsMetric struct {
 	DocaUniqueItemTemplates float64
 	// Parsed metrics from ovs-appctl metrics/show
 	ParsedMetrics []*dto.MetricFamily
+	// Flow rules with note actions
+	FlowRulesWithNotes []FlowRule
+}
+
+// FlowRule represents a parsed flow rule with note action
+type FlowRule struct {
+	NPackets   float64
+	DecodedTag string
 }
 
 // parseTextFormat parses Prometheus TEXT exposition into []*MetricFamily.
@@ -168,6 +178,15 @@ func getOvsMetric() (*OvsMetric, int) {
 		ovsMetric.DocaUniqueItemTemplates = -1
 	} else {
 		parseDocaUniqueTemplates(&ovsMetric, string(docaPipeGroupOutput))
+	}
+
+	// Parse flow rules with note actions. Cookie 0x10 is our ACL cookie.
+	cmd = exec.Command("/usr/bin/ovs-ofctl", "dump-flows", "br-sfc", "cookie=0x10/-1")
+	flowOutput, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Error running ovs-ofctl dump-flows command: %v\n", err)
+	} else {
+		parseFlowRules(&ovsMetric, string(flowOutput))
 	}
 
 	return &ovsMetric, successCount
@@ -662,11 +681,9 @@ func parseCoverageDropReasons(metrics *OvsMetric, coverageStats string) {
 			metrics.UpcallFlowLimitScaled = v
 		}
 	}
-
 }
 
 func parsePMDStats(metrics *OvsMetric, pmdStats string) {
-
 	missWithSuccessUpcallRegexp := regexp.MustCompile(`(?m)^[ \t]*miss\s+with\s+success\s+upcall:\s*(\d+)`)
 	missWithSuccessUpcallMatch := missWithSuccessUpcallRegexp.FindStringSubmatch(pmdStats)
 	metrics.MissWithSuccessUpcall = -1
@@ -845,5 +862,51 @@ func parseMemoryShow(metrics *OvsMetric, memoryShow string) {
 		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
 			metrics.MemoryUdpifKeys = v
 		}
+	}
+}
+
+// decodeHexNote decodes a hex-encoded note string (format: XX.XX.XX...)
+func decodeHexNote(hexNote string) (string, error) {
+	hexStr := strings.ReplaceAll(hexNote, ".", "")
+	bs, err := hex.DecodeString(hexStr)
+	if err != nil {
+		return "", err
+	}
+	// Notes in OVS are null padded to 8+n*6 bytes. We don't want those nulls.
+	if nullIdx := bytes.IndexByte(bs, 0); nullIdx >= 0 {
+		bs = bs[:nullIdx]
+	}
+	return string(bs), nil
+}
+
+// parseFlowRules parses ovs-ofctl dump-flows output to extract flows with note actions
+func parseFlowRules(metrics *OvsMetric, flowOutput string) {
+	metrics.FlowRulesWithNotes = []FlowRule{}
+
+	flowRegexp := regexp.MustCompile(`n_packets=(\d+).*note:([0-9a-fA-F.]+)`)
+
+	lines := strings.Split(flowOutput, "\n")
+	for _, line := range lines {
+		matches := flowRegexp.FindStringSubmatch(line)
+		if len(matches) < 3 {
+			continue
+		}
+
+		nPackets, err := strconv.ParseFloat(matches[1], 64)
+		if err != nil {
+			fmt.Printf("Error parsing n_packets: %v\n", err)
+			continue
+		}
+
+		decodedTag, err := decodeHexNote(matches[2])
+		if err != nil {
+			fmt.Printf("Error decoding hex note: %v\n", err)
+			continue
+		}
+
+		metrics.FlowRulesWithNotes = append(metrics.FlowRulesWithNotes, FlowRule{
+			NPackets:   nPackets,
+			DecodedTag: decodedTag,
+		})
 	}
 }
