@@ -79,8 +79,6 @@ type ovsDPCollector struct {
 	UpcallFlowLimitKillMetric    *prometheus.Desc
 	UpcallFlowLimitReducedMetric *prometheus.Desc
 	UpcallFlowLimitScaledMetric  *prometheus.Desc
-	// DOCA Pipe Group
-	docaUniqueItemTemplatesMetric *prometheus.Desc
 }
 
 // allow tests to stub metric fetching
@@ -359,11 +357,7 @@ func newOvsDPCollector() *ovsDPCollector {
 			"Number of times the flow_limit was scaled down proportionally due to very long processing time",
 			nil, nil,
 		),
-		// DOCA Pipe Group
-		docaUniqueItemTemplatesMetric: prometheus.NewDesc("ovsdp_doca_unique_item_templates",
-			"Number of unique item templates created from doca-pipe-group/dump",
-			nil, nil,
-		),
+
 	}
 }
 
@@ -441,8 +435,6 @@ func (collector *ovsDPCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.UpcallFlowLimitKillMetric
 	ch <- collector.UpcallFlowLimitReducedMetric
 	ch <- collector.UpcallFlowLimitScaledMetric
-	// DOCA Pipe Group
-	ch <- collector.docaUniqueItemTemplatesMetric
 }
 
 func (collector *ovsDPCollector) Collect(ch chan<- prometheus.Metric) {
@@ -652,10 +644,6 @@ func (collector *ovsDPCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 	if isValidMetric(ovsMetric.UpcallFlowLimitScaled) {
 		ch <- prometheus.MustNewConstMetric(collector.UpcallFlowLimitScaledMetric, prometheus.CounterValue, float64(ovsMetric.UpcallFlowLimitScaled))
-	}
-	// DOCA Pipe Group
-	if isValidMetric(ovsMetric.DocaUniqueItemTemplates) {
-		ch <- prometheus.MustNewConstMetric(collector.docaUniqueItemTemplatesMetric, prometheus.GaugeValue, float64(ovsMetric.DocaUniqueItemTemplates))
 	}
 
 	// Collect parsed metrics from ovs-appctl metrics/show

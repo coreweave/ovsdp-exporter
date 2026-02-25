@@ -80,11 +80,6 @@ Drop reasons, DOCA counters, and upcall flow-limit behavior.
   - `ovsdp_upcall_flow_limit_reduced`: Flow limit reduced due to high processing time.
   - `ovsdp_upcall_flow_limit_scaled`: Flow limit scaled down due to very long processing time.
 
-#### `ovs-appctl doca-pipe-group/dump`
-DOCA pipe group unique item templates.
-
-- `ovsdp_doca_unique_item_templates`: Number of unique item templates created from doca-pipe-group/dump.
-
 #### `ovs-appctl metrics/show`
 Prometheus-formatted metrics directly from OVS. All metrics returned by this command are exposed with their original names and labels, supporting both gauge and counter types. This includes a wide range of `ovs_vswitchd_*` prefixed metrics covering:
 
