@@ -71,6 +71,7 @@ type OvsMetric struct {
 	DatapathDropTunnelTsoRecirc float64
 	DatapathDropInvalidBond     float64
 	DatapathDropHwMissRecover   float64
+	DatapathDropInvalidMark     float64
 	// DOCA
 	OvsDocaNoMark              float64
 	OvsDocaInvalidClassifyPort float64
@@ -575,6 +576,17 @@ func parseCoverageDropReasons(metrics *OvsMetric, coverageStats string) {
 		v, err := strconv.ParseFloat(datapathDropHwMissRecoverMatch[1], 64)
 		if err == nil {
 			metrics.DatapathDropHwMissRecover = v
+		}
+	}
+
+	// Datapath drop invalid mark
+	datapathDropInvalidMarkRegexp := regexp.MustCompile(`(?m)^[ \t]*datapath_drop_invalid_mark.*total:\s*(\d+)`)
+	datapathDropInvalidMarkMatch := datapathDropInvalidMarkRegexp.FindStringSubmatch(coverageStats)
+	metrics.DatapathDropInvalidMark = -1
+	if len(datapathDropInvalidMarkMatch) > 1 {
+		v, err := strconv.ParseFloat(datapathDropInvalidMarkMatch[1], 64)
+		if err == nil {
+			metrics.DatapathDropInvalidMark = v
 		}
 	}
 
