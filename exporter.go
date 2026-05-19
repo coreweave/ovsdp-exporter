@@ -65,6 +65,7 @@ type ovsDPCollector struct {
 	datapathDropTunnelTsoRecircMetric *prometheus.Desc
 	datapathDropInvalidBondMetric     *prometheus.Desc
 	datapathDropHwMissRecoverMetric   *prometheus.Desc
+	datapathDropInvalidMarkMetric     *prometheus.Desc
 	// DOCA
 	ovsDocaNoMarkMetric              *prometheus.Desc
 	ovsDocaInvalidClassifyPortMetric *prometheus.Desc
@@ -307,6 +308,10 @@ func newOvsDPCollector() *ovsDPCollector {
 			"Drop packet due to hardware miss recovery failure",
 			nil, nil,
 		),
+		datapathDropInvalidMarkMetric: prometheus.NewDesc("ovsdp_datapath_drop_invalid_mark",
+			"Drop packet due to stale or invalid flow mark",
+			nil, nil,
+		),
 		// DOCA
 		ovsDocaNoMarkMetric: prometheus.NewDesc("ovsdp_ovs_doca_no_mark",
 			"Number of packets dropped due to missing mark in OVS-DOCA",
@@ -421,6 +426,7 @@ func (collector *ovsDPCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.datapathDropTunnelTsoRecircMetric
 	ch <- collector.datapathDropInvalidBondMetric
 	ch <- collector.datapathDropHwMissRecoverMetric
+	ch <- collector.datapathDropInvalidMarkMetric
 	// DOCA
 	ch <- collector.ovsDocaNoMarkMetric
 	ch <- collector.ovsDocaInvalidClassifyPortMetric
@@ -606,6 +612,9 @@ func (collector *ovsDPCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 	if isValidMetric(ovsMetric.DatapathDropHwMissRecover) {
 		ch <- prometheus.MustNewConstMetric(collector.datapathDropHwMissRecoverMetric, prometheus.CounterValue, float64(ovsMetric.DatapathDropHwMissRecover))
+	}
+	if isValidMetric(ovsMetric.DatapathDropInvalidMark) {
+		ch <- prometheus.MustNewConstMetric(collector.datapathDropInvalidMarkMetric, prometheus.CounterValue, float64(ovsMetric.DatapathDropInvalidMark))
 	}
 	// DOCA
 	if isValidMetric(ovsMetric.OvsDocaNoMark) {
