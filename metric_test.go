@@ -2064,3 +2064,99 @@ ovs_vswitchd_scrape_duration_seconds 0.34
 		t.Errorf("expected scrape duration 0.34, got %f", *scrapeMF.Metric[0].Gauge.Value)
 	}
 }
+
+func collectParsedMetrics(parsedMetrics []*dto.MetricFamily) error {
+	// Reproduces the same logic as exporter.go Collect() for ParsedMetrics
+	for _, mf := range parsedMetrics {
+		for _, m := range mf.Metric {
+			labels := make([]string, 0, len(m.Label))
+			labelValues := make([]string, 0, len(m.Label))
+			for _, label := range m.Label {
+				labels = append(labels, *label.Name)
+				labelValues = append(labelValues, *label.Value)
+			}
+
+			desc := prometheus.NewDesc(*mf.Name, *mf.Help, labels, nil)
+
+			var value float64
+			var valueType prometheus.ValueType
+
+			switch {
+			case m.Counter != nil:
+				value = *m.Counter.Value
+				valueType = prometheus.CounterValue
+			case m.Gauge != nil:
+				value = *m.Gauge.Value
+				valueType = prometheus.GaugeValue
+			case m.Histogram != nil:
+				value = float64(*m.Histogram.SampleCount)
+				valueType = prometheus.CounterValue
+			case m.Summary != nil:
+				value = float64(*m.Summary.SampleCount)
+				valueType = prometheus.CounterValue
+			default:
+				continue
+			}
+
+			_ = prometheus.MustNewConstMetric(desc, valueType, value, labelValues...)
+		}
+	}
+	return nil
+}
+
+func Test_parseTextFormat_histogram_buckets_no_crash(t *testing.T) {
+	// OVS metrics/show outputs _buckets (plural) which is non-standard.
+	// After applying strings.ReplaceAll, parsing and collecting must not panic.
+	input := `# HELP ovs_vswitchd_hw_offload_queue_service_time Distribution of service time for an offload request in microseconds
+# TYPE ovs_vswitchd_hw_offload_queue_service_time histogram
+ovs_vswitchd_hw_offload_queue_service_time_buckets{le="1",type="flow",thread_num="1",datapath="doca@ovs-doca"} 865
+ovs_vswitchd_hw_offload_queue_service_time_buckets{le="10",type="flow",thread_num="1",datapath="doca@ovs-doca"} 12000
+ovs_vswitchd_hw_offload_queue_service_time_buckets{le="100",type="flow",thread_num="1",datapath="doca@ovs-doca"} 75631
+ovs_vswitchd_hw_offload_queue_service_time_buckets{le="+Inf",type="flow",thread_num="1",datapath="doca@ovs-doca"} 114617
+ovs_vswitchd_hw_offload_queue_service_time_sum{type="flow",thread_num="1",datapath="doca@ovs-doca"} 82515022
+ovs_vswitchd_hw_offload_queue_service_time_count{type="flow",thread_num="1",datapath="doca@ovs-doca"} 114617
+# HELP ovs_vswitchd_bridge_n_bridges Number of bridges present in the instance.
+# TYPE ovs_vswitchd_bridge_n_bridges gauge
+ovs_vswitchd_bridge_n_bridges 2
+`
+
+	// Apply the fix
+	fixed := strings.ReplaceAll(input, "_buckets{", "_bucket{")
+
+	got, err := parseTextFormat(strings.NewReader(fixed))
+	if err != nil {
+		t.Fatalf("parseTextFormat failed: %v", err)
+	}
+
+	// This panics if any MetricFamily has nil Name or Help
+	collectParsedMetrics(got)
+}
+
+func Test_parseTextFormat_histogram_buckets_panics_without_fix(t *testing.T) {
+	// Without the _buckets -> _bucket fix, the Collect loop panics
+	// on nil pointer dereference of mf.Help.
+	input := `# HELP ovs_vswitchd_hw_offload_queue_service_time Distribution of service time for an offload request in microseconds
+# TYPE ovs_vswitchd_hw_offload_queue_service_time histogram
+ovs_vswitchd_hw_offload_queue_service_time_buckets{le="1",type="flow",thread_num="1",datapath="doca@ovs-doca"} 865
+ovs_vswitchd_hw_offload_queue_service_time_buckets{le="+Inf",type="flow",thread_num="1",datapath="doca@ovs-doca"} 114617
+ovs_vswitchd_hw_offload_queue_service_time_sum{type="flow",thread_num="1",datapath="doca@ovs-doca"} 82515022
+ovs_vswitchd_hw_offload_queue_service_time_count{type="flow",thread_num="1",datapath="doca@ovs-doca"} 114617
+`
+
+	// Parse WITHOUT the fix
+	got, err := parseTextFormat(strings.NewReader(input))
+	if err != nil {
+		t.Skipf("parser returned error: %v", err)
+	}
+
+	// This should panic — recover it and confirm
+	defer func() {
+		if r := recover(); r != nil {
+			t.Logf("confirmed panic without fix: %v", r)
+		} else {
+			t.Error("expected panic from nil pointer dereference, but did not panic")
+		}
+	}()
+
+	collectParsedMetrics(got)
+}
