@@ -150,7 +150,8 @@ func getOvsMetric() (*OvsMetric, int) {
 	if err != nil {
 		fmt.Printf("Error running ovs-appctl metrics/show: %v\n", err)
 	} else {
-		parsedMetrics, err := parseTextFormat(strings.NewReader(string(metricsOutput)))
+		metricsStr := strings.ReplaceAll(string(metricsOutput), "_buckets{", "_bucket{")
+		parsedMetrics, err := parseTextFormat(strings.NewReader(metricsStr))
 		if err != nil {
 			fmt.Printf("Error parsing metrics output: %v\n", err)
 		} else {
