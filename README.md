@@ -1,5 +1,5 @@
 ### ovsdp-exporter
-OVS datapath metric exporter. It executes a few `ovs-appctl` commands and exposes selected values as Prometheus metrics.
+OVS datapath metric exporter. It executes a few `ovs-appctl` commands (plus `ovs-vsctl` and `ovs-ofctl` for per-bridge meter stats) and exposes selected values as Prometheus metrics.
 
 ### Commands executed and exported metrics
 
@@ -187,6 +187,19 @@ Prometheus-formatted metrics directly from OVS. All metrics returned by this com
 - **Scrape metadata**:
   - `ovs_vswitchd_scrape_duration_seconds`: Time elapsed to process this request in seconds
   - `ovs_vswitchd_metrics_histogram_read_errors_total`: Number of histogram reads that could not resolve without inconsistencies
+
+#### `ovs-ofctl -O OpenFlow13 meter-stats <bridge>`
+Per-meter statistics from the OpenFlow (1.3+) meter table. Bridges are discovered
+each scrape with `ovs-vsctl list-br`, and `meter-stats` is run against each one
+(there is no instance-wide variant). All metrics carry a `bridge` and `meter`
+label; band metrics additionally carry a `band` label.
+
+- `ovsdp_meter_flow_count`: Number of flows referencing this meter (gauge).
+- `ovsdp_meter_packet_in_total`: Packets passed through this meter (counter).
+- `ovsdp_meter_byte_in_total`: Bytes passed through this meter (counter).
+- `ovsdp_meter_duration_seconds`: Time in seconds this meter has existed (gauge).
+- `ovsdp_meter_band_packet_total`: Packets acted on by this meter band, e.g. dropped or remarked (counter).
+- `ovsdp_meter_band_byte_total`: Bytes acted on by this meter band, e.g. dropped or remarked (counter).
 
 #### `ovs-appctl memory/show`
 High-level memory and thread/connection counts.
