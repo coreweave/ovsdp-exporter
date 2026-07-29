@@ -88,6 +88,28 @@ type OvsMetric struct {
 	UpcallFlowLimitScaled  float64
 	// Parsed metrics from ovs-appctl metrics/show
 	ParsedMetrics []*dto.MetricFamily
+	// Per-meter stats from ovs-ofctl meter-stats, one entry per meter per bridge
+	Meters []MeterStat
+}
+
+// MeterStat holds the stats for a single OpenFlow meter on a bridge, as
+// reported by `ovs-ofctl -O OpenFlow13 meter-stats <bridge>`. Unset numeric
+// fields are left as -1 (see isValidMetric).
+type MeterStat struct {
+	Bridge    string
+	ID        string
+	FlowCount float64
+	PacketIn  float64
+	ByteIn    float64
+	Duration  float64
+	Bands     []MeterBand
+}
+
+// MeterBand holds the stats for a single band within a meter.
+type MeterBand struct {
+	ID          string
+	PacketCount float64
+	ByteCount   float64
 }
 
 // parseTextFormat parses Prometheus TEXT exposition into []*MetricFamily.
@@ -160,7 +182,110 @@ func getOvsMetric() (*OvsMetric, int) {
 		}
 	}
 
+	// Per-meter stats from ovs-ofctl meter-stats. Meters are per-bridge and
+	// there is no instance-wide variant, so enumerate the bridges first.
+	cmd = exec.Command("/usr/bin/ovs-vsctl", "list-br")
+	bridgesOutput, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Error running ovs-vsctl list-br: %v\n", err)
+	} else {
+		for _, bridge := range strings.Fields(string(bridgesOutput)) {
+			meterCmd := exec.Command("/usr/bin/ovs-ofctl", "-O", "OpenFlow13", "meter-stats", bridge)
+			meterOutput, meterErr := meterCmd.CombinedOutput()
+			if meterErr != nil {
+				fmt.Printf("Error running ovs-ofctl meter-stats %s: %v\n", bridge, meterErr)
+				continue
+			}
+			parseMeterStats(&ovsMetric, bridge, string(meterOutput))
+		}
+		// Deliberately do NOT bump successCount here: a successful `ovs-vsctl
+		// list-br` only proves ovsdb-server is up, not vswitchd. Counting it
+		// would mask a down vswitchd (all ovs-appctl commands failing) as a
+		// healthy scrape and suppress ovsdp_scrape_error. Meters are
+		// supplementary; ovs-ofctl shares vswitchd's liveness with the
+		// ovs-appctl commands above, which already drive successCount.
+	}
+
 	return &ovsMetric, successCount
+}
+
+// parseMeterStats parses the output of `ovs-ofctl -O OpenFlow13 meter-stats
+// <bridge>` and appends one MeterStat per meter (with its bands) to
+// metrics.Meters. Band lines are attributed to the most recent meter. Missing
+// numeric fields are left as -1.
+func parseMeterStats(metrics *OvsMetric, bridge, output string) {
+	bandIDRegexp := regexp.MustCompile(`^\d+:$`)
+
+	seenMeters := make(map[string]bool)
+	var current *MeterStat
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+
+		switch {
+		case strings.HasPrefix(fields[0], "meter:"):
+			meter := MeterStat{Bridge: bridge, FlowCount: -1, PacketIn: -1, ByteIn: -1, Duration: -1}
+			for _, tok := range fields {
+				key, val, found := strings.Cut(tok, ":")
+				if !found {
+					continue
+				}
+				switch key {
+				case "meter":
+					meter.ID = val
+				case "flow_count":
+					if v, err := strconv.ParseFloat(val, 64); err == nil {
+						meter.FlowCount = v
+					}
+				case "packet_in_count":
+					if v, err := strconv.ParseFloat(val, 64); err == nil {
+						meter.PacketIn = v
+					}
+				case "byte_in_count":
+					if v, err := strconv.ParseFloat(val, 64); err == nil {
+						meter.ByteIn = v
+					}
+				case "duration":
+					if v, err := strconv.ParseFloat(strings.TrimSuffix(val, "s"), 64); err == nil {
+						meter.Duration = v
+					}
+				}
+			}
+			// Skip a meter with a missing or duplicate ID: emitting two series
+			// with identical {bridge,meter} labels fails the registry Gather and
+			// 500s the whole /metrics endpoint. Reset current so trailing band
+			// lines are not misattributed to the previous meter.
+			if meter.ID == "" || seenMeters[meter.ID] {
+				current = nil
+				continue
+			}
+			seenMeters[meter.ID] = true
+			metrics.Meters = append(metrics.Meters, meter)
+			current = &metrics.Meters[len(metrics.Meters)-1]
+
+		case current != nil && bandIDRegexp.MatchString(fields[0]):
+			band := MeterBand{ID: strings.TrimSuffix(fields[0], ":"), PacketCount: -1, ByteCount: -1}
+			for _, tok := range fields[1:] {
+				key, val, found := strings.Cut(tok, ":")
+				if !found {
+					continue
+				}
+				switch key {
+				case "packet_count":
+					if v, err := strconv.ParseFloat(val, 64); err == nil {
+						band.PacketCount = v
+					}
+				case "byte_count":
+					if v, err := strconv.ParseFloat(val, 64); err == nil {
+						band.ByteCount = v
+					}
+				}
+			}
+			current.Bands = append(current.Bands, band)
+		}
+	}
 }
 
 func parseCoverageDoca(metrics *OvsMetric, coverageStats string) {

@@ -80,6 +80,13 @@ type ovsDPCollector struct {
 	UpcallFlowLimitKillMetric    *prometheus.Desc
 	UpcallFlowLimitReducedMetric *prometheus.Desc
 	UpcallFlowLimitScaledMetric  *prometheus.Desc
+	// Meter stats (ovs-ofctl meter-stats, per bridge)
+	meterFlowCountMetric  *prometheus.Desc
+	meterPacketInMetric   *prometheus.Desc
+	meterByteInMetric     *prometheus.Desc
+	meterDurationMetric   *prometheus.Desc
+	meterBandPacketMetric *prometheus.Desc
+	meterBandByteMetric   *prometheus.Desc
 }
 
 // allow tests to stub metric fetching
@@ -362,7 +369,31 @@ func newOvsDPCollector() *ovsDPCollector {
 			"Number of times the flow_limit was scaled down proportionally due to very long processing time",
 			nil, nil,
 		),
-
+		// Meter stats
+		meterFlowCountMetric: prometheus.NewDesc("ovsdp_meter_flow_count",
+			"Number of flows referencing this OpenFlow (1.3+) meter",
+			[]string{"bridge", "meter"}, nil,
+		),
+		meterPacketInMetric: prometheus.NewDesc("ovsdp_meter_packet_in_total",
+			"Number of packets passed through this OpenFlow (1.3+) meter",
+			[]string{"bridge", "meter"}, nil,
+		),
+		meterByteInMetric: prometheus.NewDesc("ovsdp_meter_byte_in_total",
+			"Number of bytes passed through this OpenFlow (1.3+) meter",
+			[]string{"bridge", "meter"}, nil,
+		),
+		meterDurationMetric: prometheus.NewDesc("ovsdp_meter_duration_seconds",
+			"Time in seconds this OpenFlow (1.3+) meter has existed",
+			[]string{"bridge", "meter"}, nil,
+		),
+		meterBandPacketMetric: prometheus.NewDesc("ovsdp_meter_band_packet_total",
+			"Number of packets acted on by this meter band (e.g. dropped or remarked)",
+			[]string{"bridge", "meter", "band"}, nil,
+		),
+		meterBandByteMetric: prometheus.NewDesc("ovsdp_meter_band_byte_total",
+			"Number of bytes acted on by this meter band (e.g. dropped or remarked)",
+			[]string{"bridge", "meter", "band"}, nil,
+		),
 	}
 }
 
@@ -441,6 +472,13 @@ func (collector *ovsDPCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.UpcallFlowLimitKillMetric
 	ch <- collector.UpcallFlowLimitReducedMetric
 	ch <- collector.UpcallFlowLimitScaledMetric
+	// Meter stats
+	ch <- collector.meterFlowCountMetric
+	ch <- collector.meterPacketInMetric
+	ch <- collector.meterByteInMetric
+	ch <- collector.meterDurationMetric
+	ch <- collector.meterBandPacketMetric
+	ch <- collector.meterBandByteMetric
 }
 
 func (collector *ovsDPCollector) Collect(ch chan<- prometheus.Metric) {
@@ -653,6 +691,30 @@ func (collector *ovsDPCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 	if isValidMetric(ovsMetric.UpcallFlowLimitScaled) {
 		ch <- prometheus.MustNewConstMetric(collector.UpcallFlowLimitScaledMetric, prometheus.CounterValue, float64(ovsMetric.UpcallFlowLimitScaled))
+	}
+
+	// Meter stats (per bridge, from ovs-ofctl meter-stats)
+	for _, meter := range ovsMetric.Meters {
+		if isValidMetric(meter.FlowCount) {
+			ch <- prometheus.MustNewConstMetric(collector.meterFlowCountMetric, prometheus.GaugeValue, meter.FlowCount, meter.Bridge, meter.ID)
+		}
+		if isValidMetric(meter.PacketIn) {
+			ch <- prometheus.MustNewConstMetric(collector.meterPacketInMetric, prometheus.CounterValue, meter.PacketIn, meter.Bridge, meter.ID)
+		}
+		if isValidMetric(meter.ByteIn) {
+			ch <- prometheus.MustNewConstMetric(collector.meterByteInMetric, prometheus.CounterValue, meter.ByteIn, meter.Bridge, meter.ID)
+		}
+		if isValidMetric(meter.Duration) {
+			ch <- prometheus.MustNewConstMetric(collector.meterDurationMetric, prometheus.GaugeValue, meter.Duration, meter.Bridge, meter.ID)
+		}
+		for _, band := range meter.Bands {
+			if isValidMetric(band.PacketCount) {
+				ch <- prometheus.MustNewConstMetric(collector.meterBandPacketMetric, prometheus.CounterValue, band.PacketCount, meter.Bridge, meter.ID, band.ID)
+			}
+			if isValidMetric(band.ByteCount) {
+				ch <- prometheus.MustNewConstMetric(collector.meterBandByteMetric, prometheus.CounterValue, band.ByteCount, meter.Bridge, meter.ID, band.ID)
+			}
+		}
 	}
 
 	// Collect parsed metrics from ovs-appctl metrics/show

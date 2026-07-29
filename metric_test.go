@@ -2160,3 +2160,151 @@ ovs_vswitchd_hw_offload_queue_service_time_count{type="flow",thread_num="1",data
 
 	collectParsedMetrics(got)
 }
+
+func Test_parseMeterStats(t *testing.T) {
+	// Real output of `ovs-ofctl -O OpenFlow13 meter-stats br-hbn`.
+	input := `OFPST_METER reply (OF1.3) (xid=0x2):
+meter:2 flow_count:16 packet_in_count:9988652 byte_in_count:908682319 duration:5689075.570s bands:
+0: packet_count:0 byte_count:0
+
+meter:1 flow_count:3 packet_in_count:5006731336 byte_in_count:33513034840693 duration:5689075.570s bands:
+0: packet_count:218671749 byte_count:1179584258084
+
+meter:3 flow_count:1 packet_in_count:33700361 byte_in_count:4400193465 duration:5689075.569s bands:
+0: packet_count:0 byte_count:0`
+
+	var got OvsMetric
+	parseMeterStats(&got, "br-hbn", input)
+
+	want := OvsMetric{
+		Meters: []MeterStat{
+			{
+				Bridge: "br-hbn", ID: "2", FlowCount: 16, PacketIn: 9988652, ByteIn: 908682319, Duration: 5689075.570,
+				Bands: []MeterBand{{ID: "0", PacketCount: 0, ByteCount: 0}},
+			},
+			{
+				Bridge: "br-hbn", ID: "1", FlowCount: 3, PacketIn: 5006731336, ByteIn: 33513034840693, Duration: 5689075.570,
+				Bands: []MeterBand{{ID: "0", PacketCount: 218671749, ByteCount: 1179584258084}},
+			},
+			{
+				Bridge: "br-hbn", ID: "3", FlowCount: 1, PacketIn: 33700361, ByteIn: 4400193465, Duration: 5689075.569,
+				Bands: []MeterBand{{ID: "0", PacketCount: 0, ByteCount: 0}},
+			},
+		},
+	}
+
+	if diff := cmp.Diff(got, want); diff != "" {
+		t.Fatalf("parseMeterStats mismatch (-got +want):\n%s", diff)
+	}
+}
+
+// Test_parseMeterStats_multipleBands verifies that several bands are attributed
+// to the meter that precedes them.
+func Test_parseMeterStats_multipleBands(t *testing.T) {
+	input := `OFPST_METER reply (OF1.3) (xid=0x2):
+meter:5 flow_count:2 packet_in_count:100 byte_in_count:2000 duration:12.500s bands:
+0: packet_count:7 byte_count:70
+1: packet_count:3 byte_count:30`
+
+	var got OvsMetric
+	parseMeterStats(&got, "br-sfc", input)
+
+	want := OvsMetric{
+		Meters: []MeterStat{
+			{
+				Bridge: "br-sfc", ID: "5", FlowCount: 2, PacketIn: 100, ByteIn: 2000, Duration: 12.5,
+				Bands: []MeterBand{
+					{ID: "0", PacketCount: 7, ByteCount: 70},
+					{ID: "1", PacketCount: 3, ByteCount: 30},
+				},
+			},
+		},
+	}
+
+	if diff := cmp.Diff(got, want); diff != "" {
+		t.Fatalf("parseMeterStats mismatch (-got +want):\n%s", diff)
+	}
+}
+
+// Test_parseMeterStats_skipsDuplicateAndEmpty guards against emitting two series
+// with the same {bridge,meter} labels (which would fail the registry Gather and
+// 500 the whole /metrics endpoint). A duplicate meter ID and an empty meter
+// token are both skipped, and their band lines must not be misattributed to the
+// first, valid meter.
+func Test_parseMeterStats_skipsDuplicateAndEmpty(t *testing.T) {
+	input := `OFPST_METER reply (OF1.3) (xid=0x2):
+meter:1 flow_count:3 packet_in_count:100 byte_in_count:2000 duration:10.000s bands:
+0: packet_count:5 byte_count:50
+meter:1 flow_count:9 packet_in_count:999 byte_in_count:9999 duration:11.000s bands:
+0: packet_count:7 byte_count:70
+meter: flow_count:1 packet_in_count:1 byte_in_count:1 duration:1.000s bands:
+0: packet_count:1 byte_count:1`
+
+	var got OvsMetric
+	parseMeterStats(&got, "br-x", input)
+
+	// Only the first meter:1 survives, keeping only its own band (5/50).
+	want := OvsMetric{
+		Meters: []MeterStat{
+			{
+				Bridge: "br-x", ID: "1", FlowCount: 3, PacketIn: 100, ByteIn: 2000, Duration: 10,
+				Bands: []MeterBand{{ID: "0", PacketCount: 5, ByteCount: 50}},
+			},
+		},
+	}
+
+	if diff := cmp.Diff(got, want); diff != "" {
+		t.Fatalf("parseMeterStats mismatch (-got +want):\n%s", diff)
+	}
+}
+
+// Test_MeterStatsExported drives the collector end-to-end through the Prometheus
+// handler and confirms the meter metrics are exposed with the correct values and
+// bridge/meter/band labels, and that -1 (unset) fields are skipped.
+func Test_MeterStatsExported(t *testing.T) {
+	old := fetchOvsMetrics
+	fetchOvsMetrics = func() (*OvsMetric, int) {
+		return &OvsMetric{
+			Meters: []MeterStat{
+				{
+					Bridge: "br-hbn", ID: "1", FlowCount: 3, PacketIn: 5006731336, ByteIn: 33513034840693, Duration: -1,
+					Bands: []MeterBand{{ID: "0", PacketCount: 218671749, ByteCount: 1179584258084}},
+				},
+			},
+		}, 1
+	}
+	t.Cleanup(func() { fetchOvsMetrics = old })
+
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(newOvsDPCollector())
+
+	req := httptest.NewRequest("GET", "/metrics", nil)
+	w := httptest.NewRecorder()
+	h := promhttp.HandlerFor(reg, promhttp.HandlerOpts{ErrorHandling: promhttp.HTTPErrorOnError})
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+
+	// Labels are emitted alphabetically by the client library; large values are
+	// rendered in the shortest 'g' float form.
+	wantLines := []string{
+		`ovsdp_meter_flow_count{bridge="br-hbn",meter="1"} 3`,
+		`ovsdp_meter_packet_in_total{bridge="br-hbn",meter="1"} 5.006731336e+09`,
+		`ovsdp_meter_byte_in_total{bridge="br-hbn",meter="1"} 3.3513034840693e+13`,
+		`ovsdp_meter_band_packet_total{band="0",bridge="br-hbn",meter="1"} 2.18671749e+08`,
+		`ovsdp_meter_band_byte_total{band="0",bridge="br-hbn",meter="1"} 1.179584258084e+12`,
+	}
+	for _, line := range wantLines {
+		if !strings.Contains(body, line) {
+			t.Errorf("expected exposition to contain %q\nbody:\n%s", line, body)
+		}
+	}
+
+	// Duration was -1 (unset) and must not be exported.
+	if strings.Contains(body, "ovsdp_meter_duration_seconds") {
+		t.Errorf("did not expect ovsdp_meter_duration_seconds (value was -1)\nbody:\n%s", body)
+	}
+}
