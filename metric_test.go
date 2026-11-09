@@ -2308,3 +2308,57 @@ func Test_MeterStatsExported(t *testing.T) {
 		t.Errorf("did not expect ovsdp_meter_duration_seconds (value was -1)\nbody:\n%s", body)
 	}
 }
+
+func Test_parseSubtableLookupInfo(t *testing.T) {
+	tests := []struct {
+		name   string
+		output string
+		want   float64
+	}{
+		{
+			name: "typical output with two implementations",
+			output: `Available dpcls implementations:
+  autovalidator (Use count: 0, Priority: 0)
+  generic (Use count: 63, Priority: 1)
+`,
+			want: 63,
+		},
+		{
+			name: "multiple non-zero use counts",
+			output: `Available dpcls implementations:
+  autovalidator (Use count: 10, Priority: 0)
+  generic (Use count: 50, Priority: 1)
+  avx512 (Use count: 40, Priority: 3)
+`,
+			want: 100,
+		},
+		{
+			name: "all zeros",
+			output: `Available dpcls implementations:
+  autovalidator (Use count: 0, Priority: 0)
+  generic (Use count: 0, Priority: 1)
+`,
+			want: 0,
+		},
+		{
+			name:   "empty output",
+			output: "",
+			want:   -1,
+		},
+		{
+			name:   "no use count lines",
+			output: "Available dpcls implementations:\n",
+			want:   -1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got OvsMetric
+			parseSubtableLookupInfo(&got, tt.output)
+			if got.SubtableLookupTotalUseCount != tt.want {
+				t.Errorf("SubtableLookupTotalUseCount = %v, want %v", got.SubtableLookupTotalUseCount, tt.want)
+			}
+		})
+	}
+}

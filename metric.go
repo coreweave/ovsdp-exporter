@@ -86,6 +86,8 @@ type OvsMetric struct {
 	UpcallFlowLimitKill    float64
 	UpcallFlowLimitReduced float64
 	UpcallFlowLimitScaled  float64
+	// Subtable lookup info
+	SubtableLookupTotalUseCount float64
 	// Parsed metrics from ovs-appctl metrics/show
 	ParsedMetrics []*dto.MetricFamily
 	// Per-meter stats from ovs-ofctl meter-stats, one entry per meter per bridge
@@ -166,6 +168,16 @@ func getOvsMetric() (*OvsMetric, int) {
 		successCount++
 	}
 
+	// Parse subtable lookup info
+	cmd = exec.Command("/usr/bin/ovs-appctl", "dpif-netdev/subtable-lookup-info-get")
+	subtableLookupOutput, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Error running ovs-appctl dpif-netdev/subtable-lookup-info-get: %v\n", err)
+		ovsMetric.SubtableLookupTotalUseCount = -1
+	} else {
+		parseSubtableLookupInfo(&ovsMetric, string(subtableLookupOutput))
+	}
+
 	// Parse metrics from ovs-appctl metrics/show
 	cmd = exec.Command("/usr/bin/ovs-appctl", "metrics/show")
 	metricsOutput, err := cmd.CombinedOutput()
@@ -207,6 +219,30 @@ func getOvsMetric() (*OvsMetric, int) {
 	}
 
 	return &ovsMetric, successCount
+}
+
+// parseSubtableLookupInfo parses the output of `ovs-appctl
+// dpif-netdev/subtable-lookup-info-get` and sums all "Use count" values.
+//
+// Example output:
+//
+//	Available dpcls implementations:
+//	  autovalidator (Use count: 0, Priority: 0)
+//	  generic (Use count: 63, Priority: 1)
+func parseSubtableLookupInfo(metrics *OvsMetric, output string) {
+	re := regexp.MustCompile(`Use count:\s*(\d+)`)
+	matches := re.FindAllStringSubmatch(output, -1)
+	metrics.SubtableLookupTotalUseCount = -1
+	var total float64
+	for _, m := range matches {
+		v, err := strconv.ParseFloat(m[1], 64)
+		if err == nil {
+			total += v
+		}
+	}
+	if len(matches) > 0 {
+		metrics.SubtableLookupTotalUseCount = total
+	}
 }
 
 // parseMeterStats parses the output of `ovs-ofctl -O OpenFlow13 meter-stats

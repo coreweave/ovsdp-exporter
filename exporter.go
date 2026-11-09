@@ -80,6 +80,8 @@ type ovsDPCollector struct {
 	UpcallFlowLimitKillMetric    *prometheus.Desc
 	UpcallFlowLimitReducedMetric *prometheus.Desc
 	UpcallFlowLimitScaledMetric  *prometheus.Desc
+	// Subtable lookup info
+	subtableLookupTotalUseCountMetric *prometheus.Desc
 	// Meter stats (ovs-ofctl meter-stats, per bridge)
 	meterFlowCountMetric  *prometheus.Desc
 	meterPacketInMetric   *prometheus.Desc
@@ -369,6 +371,11 @@ func newOvsDPCollector() *ovsDPCollector {
 			"Number of times the flow_limit was scaled down proportionally due to very long processing time",
 			nil, nil,
 		),
+		// Subtable lookup info
+		subtableLookupTotalUseCountMetric: prometheus.NewDesc("ovsdp_subtable_lookup_total_use_count",
+			"Total use count across all dpcls implementations from dpif-netdev/subtable-lookup-info-get",
+			nil, nil,
+		),
 		// Meter stats
 		meterFlowCountMetric: prometheus.NewDesc("ovsdp_meter_flow_count",
 			"Number of flows referencing this OpenFlow (1.3+) meter",
@@ -472,6 +479,8 @@ func (collector *ovsDPCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.UpcallFlowLimitKillMetric
 	ch <- collector.UpcallFlowLimitReducedMetric
 	ch <- collector.UpcallFlowLimitScaledMetric
+	// Subtable lookup info
+	ch <- collector.subtableLookupTotalUseCountMetric
 	// Meter stats
 	ch <- collector.meterFlowCountMetric
 	ch <- collector.meterPacketInMetric
@@ -715,6 +724,11 @@ func (collector *ovsDPCollector) Collect(ch chan<- prometheus.Metric) {
 				ch <- prometheus.MustNewConstMetric(collector.meterBandByteMetric, prometheus.CounterValue, band.ByteCount, meter.Bridge, meter.ID, band.ID)
 			}
 		}
+	}
+
+	// Subtable lookup info
+	if isValidMetric(ovsMetric.SubtableLookupTotalUseCount) {
+		ch <- prometheus.MustNewConstMetric(collector.subtableLookupTotalUseCountMetric, prometheus.GaugeValue, float64(ovsMetric.SubtableLookupTotalUseCount))
 	}
 
 	// Collect parsed metrics from ovs-appctl metrics/show
