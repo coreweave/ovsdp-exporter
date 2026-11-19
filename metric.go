@@ -88,10 +88,18 @@ type OvsMetric struct {
 	UpcallFlowLimitScaled  float64
 	// Subtable lookup info
 	SubtableLookupTotalUseCount float64
+	// PMD CPU usage from pidstat
+	PmdCpuStats []PmdCpuStat
 	// Parsed metrics from ovs-appctl metrics/show
 	ParsedMetrics []*dto.MetricFamily
 	// Per-meter stats from ovs-ofctl meter-stats, one entry per meter per bridge
 	Meters []MeterStat
+}
+
+// PmdCpuStat holds the CPU usage for a single PMD thread as reported by pidstat.
+type PmdCpuStat struct {
+	Thread     string
+	CpuPercent float64
 }
 
 // MeterStat holds the stats for a single OpenFlow meter on a bridge, as
@@ -218,6 +226,15 @@ func getOvsMetric() (*OvsMetric, int) {
 		// ovs-appctl commands above, which already drive successCount.
 	}
 
+	// Parse PMD thread CPU usage from pidstat
+	cmd = exec.Command("/usr/bin/pidstat", "-h", "-t", "-u", "-H", "-C", "pmd-c", "5", "1")
+	pidstatOutput, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Error running pidstat: %v\n", err)
+	} else {
+		parsePidstatPmdCpu(&ovsMetric, string(pidstatOutput))
+	}
+
 	return &ovsMetric, successCount
 }
 
@@ -242,6 +259,41 @@ func parseSubtableLookupInfo(metrics *OvsMetric, output string) {
 	}
 	if len(matches) > 0 {
 		metrics.SubtableLookupTotalUseCount = total
+	}
+}
+
+// parsePidstatPmdCpu parses the output of `pidstat -h -t -u -H -C 'pmd-c' 5 1`
+// and extracts per-PMD-thread CPU usage.
+//
+// Example output:
+//
+//	# Time        UID      TGID       TID    %usr %system  %guest   %wait    %CPU   CPU  Command
+//	1795121967      0     17750     17762   99.62    0.00    0.00    0.00   99.62    11  (ovs-vswitchd)__pmd-c11/id:8
+//	1795121967      0     17750     17763   45.30    0.00    0.00    0.00   45.30     5  (ovs-vswitchd)__pmd-c05/id:3
+func parsePidstatPmdCpu(metrics *OvsMetric, output string) {
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 10 {
+			continue
+		}
+		// The command/thread name is the last field, e.g. "(ovs-vswitchd)__pmd-c11/id:8"
+		command := fields[len(fields)-1]
+		idx := strings.Index(command, "__pmd-c")
+		if idx == -1 {
+			continue
+		}
+		thread := command[idx+2:] // "pmd-c11/id:8"
+
+		// %CPU is the 9th field (0-indexed: field 8)
+		cpuPercent, err := strconv.ParseFloat(fields[8], 64)
+		if err != nil {
+			continue
+		}
+
+		metrics.PmdCpuStats = append(metrics.PmdCpuStats, PmdCpuStat{
+			Thread:     thread,
+			CpuPercent: cpuPercent,
+		})
 	}
 }
 

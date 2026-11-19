@@ -2362,3 +2362,69 @@ func Test_parseSubtableLookupInfo(t *testing.T) {
 		})
 	}
 }
+
+func Test_parsePidstatPmdCpu(t *testing.T) {
+	tests := []struct {
+		name   string
+		output string
+		want   []PmdCpuStat
+	}{
+		{
+			name: "single PMD thread",
+			output: `Linux 5.15.0-1082-bluefield (dpu-host) 	11/19/26 	_aarch64_	(16 CPU)
+
+# Time        UID      TGID       TID    %usr %system  %guest   %wait    %CPU   CPU  Command
+1795121967      0     17750     17762   99.62    0.00    0.00    0.00   99.62    11  (ovs-vswitchd)__pmd-c11/id:8
+`,
+			want: []PmdCpuStat{
+				{Thread: "pmd-c11/id:8", CpuPercent: 99.62},
+			},
+		},
+		{
+			name: "multiple PMD threads",
+			output: `Linux 5.15.0-1082-bluefield (dpu-host) 	11/19/26 	_aarch64_	(16 CPU)
+
+# Time        UID      TGID       TID    %usr %system  %guest   %wait    %CPU   CPU  Command
+1795121967      0     17750     17762   99.62    0.00    0.00    0.00   99.62    11  (ovs-vswitchd)__pmd-c11/id:8
+1795121967      0     17750     17763   45.30    0.00    0.00    0.00   45.30     5  (ovs-vswitchd)__pmd-c05/id:3
+1795121967      0     17750     17764    0.00    0.00    0.00    0.00    0.00     2  (ovs-vswitchd)__pmd-c02/id:1
+`,
+			want: []PmdCpuStat{
+				{Thread: "pmd-c11/id:8", CpuPercent: 99.62},
+				{Thread: "pmd-c05/id:3", CpuPercent: 45.30},
+				{Thread: "pmd-c02/id:1", CpuPercent: 0.00},
+			},
+		},
+		{
+			name:   "empty output",
+			output: "",
+			want:   nil,
+		},
+		{
+			name: "no PMD threads in output",
+			output: `Linux 5.15.0-1082-bluefield (dpu-host) 	11/19/26 	_aarch64_	(16 CPU)
+
+# Time        UID      TGID       TID    %usr %system  %guest   %wait    %CPU   CPU  Command
+`,
+			want: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got OvsMetric
+			parsePidstatPmdCpu(&got, tt.output)
+			if len(got.PmdCpuStats) != len(tt.want) {
+				t.Fatalf("PmdCpuStats length = %d, want %d", len(got.PmdCpuStats), len(tt.want))
+			}
+			for i, w := range tt.want {
+				if got.PmdCpuStats[i].Thread != w.Thread {
+					t.Errorf("[%d] Thread = %q, want %q", i, got.PmdCpuStats[i].Thread, w.Thread)
+				}
+				if got.PmdCpuStats[i].CpuPercent != w.CpuPercent {
+					t.Errorf("[%d] CpuPercent = %v, want %v", i, got.PmdCpuStats[i].CpuPercent, w.CpuPercent)
+				}
+			}
+		})
+	}
+}
