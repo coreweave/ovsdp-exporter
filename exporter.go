@@ -82,6 +82,8 @@ type ovsDPCollector struct {
 	UpcallFlowLimitScaledMetric  *prometheus.Desc
 	// Subtable lookup info
 	subtableLookupTotalUseCountMetric *prometheus.Desc
+	// PMD CPU usage
+	pmdCpuPercentMetric *prometheus.Desc
 	// Meter stats (ovs-ofctl meter-stats, per bridge)
 	meterFlowCountMetric  *prometheus.Desc
 	meterPacketInMetric   *prometheus.Desc
@@ -376,6 +378,11 @@ func newOvsDPCollector() *ovsDPCollector {
 			"Total use count across all dpcls implementations from dpif-netdev/subtable-lookup-info-get",
 			nil, nil,
 		),
+		// PMD CPU usage
+		pmdCpuPercentMetric: prometheus.NewDesc("ovsdp_pmd_cpu_percent",
+			"CPU usage percentage of a PMD thread from pidstat",
+			[]string{"thread"}, nil,
+		),
 		// Meter stats
 		meterFlowCountMetric: prometheus.NewDesc("ovsdp_meter_flow_count",
 			"Number of flows referencing this OpenFlow (1.3+) meter",
@@ -481,6 +488,8 @@ func (collector *ovsDPCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.UpcallFlowLimitScaledMetric
 	// Subtable lookup info
 	ch <- collector.subtableLookupTotalUseCountMetric
+	// PMD CPU usage
+	ch <- collector.pmdCpuPercentMetric
 	// Meter stats
 	ch <- collector.meterFlowCountMetric
 	ch <- collector.meterPacketInMetric
@@ -729,6 +738,11 @@ func (collector *ovsDPCollector) Collect(ch chan<- prometheus.Metric) {
 	// Subtable lookup info
 	if isValidMetric(ovsMetric.SubtableLookupTotalUseCount) {
 		ch <- prometheus.MustNewConstMetric(collector.subtableLookupTotalUseCountMetric, prometheus.GaugeValue, float64(ovsMetric.SubtableLookupTotalUseCount))
+	}
+
+	// PMD CPU usage
+	for _, pmd := range ovsMetric.PmdCpuStats {
+		ch <- prometheus.MustNewConstMetric(collector.pmdCpuPercentMetric, prometheus.GaugeValue, pmd.CpuPercent, pmd.Thread)
 	}
 
 	// Collect parsed metrics from ovs-appctl metrics/show
