@@ -17,6 +17,8 @@ func main() {
 
 	flag.Parse()
 
+	startPmdCpuPoller()
+
 	registry := prometheus.NewRegistry()
 	collector := newOvsDPCollector()
 	registry.MustRegister(collector)
