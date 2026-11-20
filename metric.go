@@ -7,10 +7,41 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 )
+
+// pmdCpuCache holds the latest pidstat results so scrapes don't block.
+var pmdCpuCache struct {
+	sync.Mutex
+	stats []PmdCpuStat
+}
+
+// startPmdCpuPoller runs pidstat in a background loop, updating the cache.
+func startPmdCpuPoller() {
+	go func() {
+		for {
+			cmd := exec.Command("/usr/bin/pidstat", "-h", "-t", "-u", "-H", "-C", "pmd-c", "5", "1")
+			out, err := cmd.CombinedOutput()
+			if err == nil {
+				var stats []PmdCpuStat
+				var m OvsMetric
+				parsePidstatPmdCpu(&m, string(out))
+				stats = m.PmdCpuStats
+
+				pmdCpuCache.Lock()
+				pmdCpuCache.stats = stats
+				pmdCpuCache.Unlock()
+			} else {
+				fmt.Printf("Error running pidstat: %v\n", err)
+			}
+			time.Sleep(1 * time.Second)
+		}
+	}()
+}
 
 type OvsMetric struct {
 	// PMD stats
@@ -226,14 +257,10 @@ func getOvsMetric() (*OvsMetric, int) {
 		// ovs-appctl commands above, which already drive successCount.
 	}
 
-	// Parse PMD thread CPU usage from pidstat
-	cmd = exec.Command("/usr/bin/pidstat", "-h", "-t", "-u", "-H", "-C", "pmd-c", "5", "1")
-	pidstatOutput, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Printf("Error running pidstat: %v\n", err)
-	} else {
-		parsePidstatPmdCpu(&ovsMetric, string(pidstatOutput))
-	}
+	// Read cached PMD CPU stats (updated by background poller)
+	pmdCpuCache.Lock()
+	ovsMetric.PmdCpuStats = pmdCpuCache.stats
+	pmdCpuCache.Unlock()
 
 	return &ovsMetric, successCount
 }
